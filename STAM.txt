@@ -1,16 +1,16 @@
-####### MAC To run the server:
+####### MAC ####### To run the server:
 java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar server config.yml
 
 
-####### WINDOWS To run the server:
+####### WINDOWS #######To run the server:
 java "-Ddw.graphhopper.datareader.file=export.osm" -jar graphhopper-web-11.0.jar server config.yml
 
 
-#######  MAC Remove Cache from FAST-Routing-Server diractory:
+#######  MAC  ####### Remove Cache from FAST-Routing-Server diractory:
 rm -rf graph-cache
 
 
-#######  WINDOWS Remove Cache from FAST-Routing-Server diractory:
+#######  WINDOWS  ####### Remove Cache from FAST-Routing-Server diractory:
 Remove-Item -Recurse -Force graph-cache
 
 
