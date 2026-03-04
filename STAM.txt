@@ -1,0 +1,14 @@
+to rum the server:
+java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar server config.yml
+
+
+Pull Command:
+
+git pull origin main
+
+
+Push Command:
+
+git add .
+git commit -m "Update"
+git push origin main
