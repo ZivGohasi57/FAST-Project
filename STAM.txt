@@ -1,14 +1,15 @@
-to rum the server:
+####### To run the server:
 java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar server config.yml
 
+####### Remove Cache from FAST-Routing-Server diractory:
+rm -rf graph-cache
 
-Pull Command:
 
+####### Pull Command:
 git pull origin main
 
 
-Push Command:
-
+####### Push Command:
 git add .
 git commit -m "Update"
 git push origin main
