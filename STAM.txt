@@ -5,6 +5,10 @@ java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar s
 rm -rf graph-cache
 
 
+####### URL of localhost Server:
+http://localhost:8080
+
+
 ####### Pull Command:
 git pull origin main
 
