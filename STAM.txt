@@ -1,11 +1,7 @@
 ####### MAC ####### To run the server:
 java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar server config.yml
 
-####### MAC ####### To compile in fat-routing-server:
-javac -cp ".:lib/*" $(find . -name "*.java")    
-
-####### MAC ####### run the api of FAST:
-java -cp ".:lib/*" api.controllers.RoutingController
+and run in main
 
 
 
@@ -13,15 +9,12 @@ java -cp ".:lib/*" api.controllers.RoutingController
 ####### WINDOWS #######To run the server:
 java "-Ddw.graphhopper.datareader.file=export.osm" -jar graphhopper-web-11.0.jar server config.yml
 
-
-####### WINDOWS ####### To compile in fat-routing-server:
-javac -cp ".;lib/*" (Get-ChildItem -Recurse *.java | ForEach-Object { $_.FullName })
+and run in main
 
 
-####### WINDOWS ####### run the api of FAST:
-java -cp ".;lib/*" api.controllers.RoutingController
 
-
+####### MAVEN run command:
+mvn compile exec:java -Dexec.mainClass="api.controllers.RoutingController"
 
 
 
