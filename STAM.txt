@@ -1,9 +1,28 @@
 ####### MAC ####### To run the server:
 java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar server config.yml
 
+####### MAC ####### To compile in fat-routing-server:
+javac -cp ".:lib/*" $(find . -name "*.java")    
+
+####### MAC ####### run the api of FAST:
+java -cp ".:lib/*" api.controllers.RoutingController
+
+
+
 
 ####### WINDOWS #######To run the server:
 java "-Ddw.graphhopper.datareader.file=export.osm" -jar graphhopper-web-11.0.jar server config.yml
+
+
+####### WINDOWS ####### To compile in fat-routing-server:
+javac -cp ".;lib/*" (Get-ChildItem -Recurse *.java | ForEach-Object { $_.FullName })
+
+
+####### WINDOWS ####### run the api of FAST:
+java -cp ".;lib/*" api.controllers.RoutingController
+
+
+
 
 
 #######  MAC  ####### Remove Cache from FAST-Routing-Server diractory:
@@ -16,6 +35,10 @@ Remove-Item -Recurse -Force graph-cache
 
 ####### URL of localhost Server:
 http://localhost:8080
+
+
+####### URL of API chack:
+http://localhost:8082/api/route?startLat=32.1668139&startLon=34.9201287&endLat=32.165000&endLon=34.922000&isEmergency=true
 
 
 ####### Pull Command:
