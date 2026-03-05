@@ -1,44 +1,58 @@
-####### MAC ####### To run the server:
+####### GRAPH-HOPPER SERVER (PORT 8080) #######
+
+####### MAC:
 java -Ddw.graphhopper.datareader.file=export.osm -jar graphhopper-web-11.0.jar server config.yml
 
-and run in main
-
-
-
-
-####### WINDOWS #######To run the server:
+####### WINDOWS:
 java "-Ddw.graphhopper.datareader.file=export.osm" -jar graphhopper-web-11.0.jar server config.yml
 
-and run in main
+
+####### FAST API SERVER (PORT 8082) #######
+
+####### MAC:
+javac -cp ".:lib/*" -d . $(find . -name "*.java") && java -cp ".:lib/*" api.controllers.RoutingController
+
+####### WINDOWS (PowerShell):
+javac -cp ".;lib/*" -d . (Get-ChildItem -Recurse *.java | ForEach-Object { $_.FullName }); java -cp ".;lib/*" api.controllers.RoutingController
 
 
+####### REACT FRONTEND (PORT 5173) #######
 
-####### MAVEN run command:
+####### ALL (Navigate to fast-frontend first):
+npm run dev
+
+
+####### MAVEN COMMAND #######
 mvn compile exec:java -Dexec.mainClass="api.controllers.RoutingController"
 
 
+####### CACHE CLEANING #######
 
-#######  MAC  ####### Remove Cache from FAST-Routing-Server diractory:
+####### MAC:
 rm -rf graph-cache
 
-
-#######  WINDOWS  ####### Remove Cache from FAST-Routing-Server diractory:
+####### WINDOWS:
 Remove-Item -Recurse -Force graph-cache
 
 
-####### URL of localhost Server:
+####### URLS FOR CHECKING #######
+
+####### GRAPH-HOPPER:
 http://localhost:8080
 
-
-####### URL of API chack:
+####### API ROUTE:
 http://localhost:8082/api/route?startLat=32.1668139&startLon=34.9201287&endLat=32.165000&endLon=34.922000&isEmergency=true
 
+####### FRONTEND:
+http://localhost:5173
 
-####### Pull Command:
+
+####### GIT COMMANDS #######
+
+####### PULL:
 git pull origin main
 
-
-####### Push Command:
+####### PUSH:
 git add .
 git commit -m "Update"
 git push origin main
