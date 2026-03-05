@@ -42735,13 +42735,59 @@ graphhopper-web-*.jar
 export.osm
 graph-cache/
 ----------------------------------------
+File Location: FAST-Routing-Server/Main.java
+Content:
+import core.models.Coordinate;
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+import routing.engine.FastRoutingEngine;
+import routing.engine.FastRoutingEngineClient;
+import routing.strategies.EmergencyRoutingStrategy;
+import routing.strategies.RoutineRoutingStrategy;
+
+public class Main {
+    public static void main(String[] args) {
+        FastRoutingEngineClient client = new FastRoutingEngineClient("http://localhost:8080");
+
+        RoutineRoutingStrategy routineStrategy = new RoutineRoutingStrategy(client);
+        EmergencyRoutingStrategy emergencyStrategy = new EmergencyRoutingStrategy(client);
+
+        FastRoutingEngine engine = new FastRoutingEngine(routineStrategy);
+
+        RouteRequest request = new RouteRequest(32.1668139, 34.9201287, 32.165000, 34.922000, false);
+
+        System.out.println("--- Routine Profile ---");
+        RouteResponse routineResponse = engine.getOptimalRoute(request);
+        printResponse(routineResponse);
+
+        System.out.println("\n--- Emergency Profile ---");
+        engine.setStrategy(emergencyStrategy);
+        request.setEmergency(true);
+        RouteResponse emergencyResponse = engine.getOptimalRoute(request);
+        printResponse(emergencyResponse);
+    }
+
+    private static void printResponse(RouteResponse response) {
+        System.out.println("Distance: " + response.getTotalDistanceMeters() + " meters");
+        System.out.println("Time: " + (response.getEstimatedTimeSeconds() / 1000.0) + " seconds");
+        System.out.println("Path points count: " + response.getPath().size());
+        
+        if (!response.getPath().isEmpty()) {
+            Coordinate first = response.getPath().get(0);
+            Coordinate last = response.getPath().get(response.getPath().size() - 1);
+            System.out.println("Start Node: [" + first.getLat() + ", " + first.getLon() + "]");
+            System.out.println("End Node: [" + last.getLat() + ", " + last.getLon() + "]");
+        }
+    }
+}
+----------------------------------------
 File Location: FAST-Routing-Server/config.yml
 Content:
 graphhopper:
   datareader.file: export.osm
   graph.location: graph-cache
   import.osm.ignored_highways: footway,cycleway,path,pedestrian,steps
-  graph.encoded_values: car_access, car_average_speed
+  graph.encoded_values: car_access, car_average_speed, road_class
 
   profiles:
     - name: ambulance_routine
@@ -42750,22 +42796,275 @@ graphhopper:
         speed:
           - if: "true"
             limit_to: "car_average_speed"
-        priority:
-          - if: "!car_access"
-            multiply_by: 0
 
     - name: ambulance_emergency
       custom_model:
-        distance_influence: 15
+        distance_influence: 0
+        priority:
+          - if: "road_class == RESIDENTIAL"
+            multiply_by: 0.8
         speed:
           - if: "true"
             limit_to: "car_average_speed"
-        priority:
-          - if: "!car_access"
-            multiply_by: 0.1
+          - if: "true"
+            multiply_by: 1.3
+----------------------------------------
+File Location: FAST-Routing-Server/core/models/RouteRequest.java
+Content:
+package core.models;
 
-  server.application_connectors:
-    - type: http
-      port: 8080
-      bind_host: localhost
+public class RouteRequest {
+    private double startLat;
+    private double startLon;
+    private double endLat;
+    private double endLon;
+    private boolean isEmergency;
+
+    public RouteRequest(double startLat, double startLon, double endLat, double endLon, boolean isEmergency) {
+        this.startLat = startLat;
+        this.startLon = startLon;
+        this.endLat = endLat;
+        this.endLon = endLon;
+        this.isEmergency = isEmergency;
+    }
+
+    public double getStartLat() { return startLat; }
+    public void setStartLat(double startLat) { this.startLat = startLat; }
+
+    public double getStartLon() { return startLon; }
+    public void setStartLon(double startLon) { this.startLon = startLon; }
+
+    public double getEndLat() { return endLat; }
+    public void setEndLat(double endLat) { this.endLat = endLat; }
+
+    public double getEndLon() { return endLon; }
+    public void setEndLon(double endLon) { this.endLon = endLon; }
+
+    public boolean isEmergency() { return isEmergency; }
+    public void setEmergency(boolean emergency) { isEmergency = emergency; }
+}
+----------------------------------------
+File Location: FAST-Routing-Server/core/models/Coordinate.java
+Content:
+package core.models;
+
+public class Coordinate {
+    private double lat;
+    private double lon;
+
+    public Coordinate(double lat, double lon) {
+        this.lat = lat;
+        this.lon = lon;
+    }
+
+    public double getLat() { return lat; }
+    public void setLat(double lat) { this.lat = lat; }
+
+    public double getLon() { return lon; }
+    public void setLon(double lon) { this.lon = lon; }
+}
+----------------------------------------
+File Location: FAST-Routing-Server/core/models/RouteResponse.java
+Content:
+package core.models;
+
+import java.util.List;
+
+public class RouteResponse {
+    private double totalDistanceMeters;
+    private long estimatedTimeSeconds;
+    private List<Coordinate> path;
+
+    public RouteResponse(double totalDistanceMeters, long estimatedTimeSeconds, List<Coordinate> path) {
+        this.totalDistanceMeters = totalDistanceMeters;
+        this.estimatedTimeSeconds = estimatedTimeSeconds;
+        this.path = path;
+    }
+
+    public double getTotalDistanceMeters() { return totalDistanceMeters; }
+    public void setTotalDistanceMeters(double totalDistanceMeters) { this.totalDistanceMeters = totalDistanceMeters; }
+
+    public long getEstimatedTimeSeconds() { return estimatedTimeSeconds; }
+    public void setEstimatedTimeSeconds(long estimatedTimeSeconds) { this.estimatedTimeSeconds = estimatedTimeSeconds; }
+
+    public List<Coordinate> getPath() { return path; }
+    public void setPath(List<Coordinate> path) { this.path = path; }
+}
+----------------------------------------
+File Location: FAST-Routing-Server/core/interfaces/IRoutingEngineClient.java
+Content:
+package core.interfaces;
+
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+
+public interface IRoutingEngineClient {
+    RouteResponse fetchRoute(RouteRequest request, String profileName);
+}
+----------------------------------------
+File Location: FAST-Routing-Server/core/interfaces/IRoutingStrategy.java
+Content:
+package core.interfaces;
+
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+
+public interface IRoutingStrategy {
+    RouteResponse calculateRoute(RouteRequest request);
+}
+----------------------------------------
+File Location: FAST-Routing-Server/routing/strategies/EmergencyRoutingStrategy.java
+Content:
+package routing.strategies;
+
+import core.interfaces.IRoutingStrategy;
+import core.interfaces.IRoutingEngineClient;
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+
+public class EmergencyRoutingStrategy implements IRoutingStrategy {
+
+    private IRoutingEngineClient engineClient;
+
+    public EmergencyRoutingStrategy(IRoutingEngineClient engineClient) {
+        this.engineClient = engineClient;
+    }
+
+    @Override
+    public RouteResponse calculateRoute(RouteRequest request) {
+        return engineClient.fetchRoute(request, "ambulance_emergency");
+    }
+}
+----------------------------------------
+File Location: FAST-Routing-Server/routing/strategies/RoutineRoutingStrategy.java
+Content:
+package routing.strategies;
+
+import core.interfaces.IRoutingStrategy;
+import core.interfaces.IRoutingEngineClient;
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+
+public class RoutineRoutingStrategy implements IRoutingStrategy {
+
+    private IRoutingEngineClient engineClient;
+
+    public RoutineRoutingStrategy(IRoutingEngineClient engineClient) {
+        this.engineClient = engineClient;
+    }
+
+    @Override
+    public RouteResponse calculateRoute(RouteRequest request) {
+        return engineClient.fetchRoute(request, "ambulance_routine");
+    }
+}
+----------------------------------------
+File Location: FAST-Routing-Server/routing/engine/FastRoutingEngineClient.java
+Content:
+package routing.engine;
+
+import core.interfaces.IRoutingEngineClient;
+import core.models.Coordinate;
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonElement;
+
+public class FastRoutingEngineClient implements IRoutingEngineClient {
+
+    private final String baseUrl;
+    private final HttpClient httpClient;
+    private final Gson gson;
+
+    public FastRoutingEngineClient(String baseUrl) {
+        this.baseUrl = baseUrl;
+        this.httpClient = HttpClient.newHttpClient();
+        this.gson = new Gson();
+    }
+
+    @Override
+    public RouteResponse fetchRoute(RouteRequest request, String profileName) {
+        try {
+            String url = String.format("%s/route?point=%f,%f&point=%f,%f&profile=%s&points_encoded=false",
+                    baseUrl,
+                    request.getStartLat(), request.getStartLon(),
+                    request.getEndLat(), request.getEndLon(),
+                    profileName);
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+
+            JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
+            JsonArray paths = jsonObject.getAsJsonArray("paths");
+            JsonObject firstPath = paths.get(0).getAsJsonObject();
+
+            double distance = firstPath.get("distance").getAsDouble();
+            long time = firstPath.get("time").getAsLong();
+
+            JsonObject pointsObj = firstPath.getAsJsonObject("points");
+            JsonArray coordinatesArray = pointsObj.getAsJsonArray("coordinates");
+
+            List<Coordinate> pathCoordinates = new ArrayList<>();
+            for (JsonElement element : coordinatesArray) {
+                JsonArray coord = element.getAsJsonArray();
+                double lon = coord.get(0).getAsDouble();
+                double lat = coord.get(1).getAsDouble();
+                pathCoordinates.add(new Coordinate(lat, lon));
+            }
+
+            return new RouteResponse(distance, time, pathCoordinates);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new RouteResponse(0.0, 0L, new ArrayList<>());
+        }
+    }
+}
+----------------------------------------
+File Location: FAST-Routing-Server/routing/engine/FastRoutingEngine.java
+Content:
+package routing.engine;
+
+import core.interfaces.IRoutingStrategy;
+import core.models.RouteRequest;
+import core.models.RouteResponse;
+
+public class FastRoutingEngine {
+    
+    private IRoutingStrategy currentStrategy;
+
+    public FastRoutingEngine(IRoutingStrategy initialStrategy) {
+        this.currentStrategy = initialStrategy;
+    }
+
+    public void setStrategy(IRoutingStrategy newStrategy) {
+        this.currentStrategy = newStrategy;
+    }
+
+    public RouteResponse getOptimalRoute(RouteRequest request) {
+        return this.currentStrategy.calculateRoute(request);
+    }
+}
+----------------------------------------
+File Location: .vscode/settings.json
+Content:
+{
+    "java.project.referencedLibraries": [
+        "lib/**/*.jar"
+    ]
+}
 ----------------------------------------

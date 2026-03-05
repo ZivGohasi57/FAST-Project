@@ -1,4 +1,6 @@
+import core.models.Coordinate;
 import core.models.RouteRequest;
+import core.models.RouteResponse;
 import routing.engine.FastRoutingEngine;
 import routing.engine.FastRoutingEngineClient;
 import routing.strategies.EmergencyRoutingStrategy;
@@ -16,11 +18,26 @@ public class Main {
         RouteRequest request = new RouteRequest(32.1668139, 34.9201287, 32.165000, 34.922000, false);
 
         System.out.println("--- Routine Profile ---");
-        engine.getOptimalRoute(request);
+        RouteResponse routineResponse = engine.getOptimalRoute(request);
+        printResponse(routineResponse);
 
-        System.out.println("--- Emergency Profile ---");
+        System.out.println("\n--- Emergency Profile ---");
         engine.setStrategy(emergencyStrategy);
         request.setEmergency(true);
-        engine.getOptimalRoute(request);
+        RouteResponse emergencyResponse = engine.getOptimalRoute(request);
+        printResponse(emergencyResponse);
+    }
+
+    private static void printResponse(RouteResponse response) {
+        System.out.println("Distance: " + response.getTotalDistanceMeters() + " meters");
+        System.out.println("Time: " + (response.getEstimatedTimeSeconds() / 1000.0) + " seconds");
+        System.out.println("Path points count: " + response.getPath().size());
+        
+        if (!response.getPath().isEmpty()) {
+            Coordinate first = response.getPath().get(0);
+            Coordinate last = response.getPath().get(response.getPath().size() - 1);
+            System.out.println("Start Node: [" + first.getLat() + ", " + first.getLon() + "]");
+            System.out.println("End Node: [" + last.getLat() + ", " + last.getLon() + "]");
+        }
     }
 }
