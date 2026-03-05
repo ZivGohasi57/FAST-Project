@@ -2,7 +2,7 @@ graphhopper:
   datareader.file: export.osm
   graph.location: graph-cache
   import.osm.ignored_highways: footway,cycleway,path,pedestrian,steps
-  graph.encoded_values: car_access, car_average_speed
+  graph.encoded_values: car_access, car_average_speed, road_class
 
   profiles:
     - name: ambulance_routine
@@ -11,21 +11,15 @@ graphhopper:
         speed:
           - if: "true"
             limit_to: "car_average_speed"
-        priority:
-          - if: "!car_access"
-            multiply_by: 0
 
     - name: ambulance_emergency
       custom_model:
-        distance_influence: 15
+        distance_influence: 0
+        priority:
+          - if: "road_class == RESIDENTIAL"
+            multiply_by: 0.8
         speed:
           - if: "true"
             limit_to: "car_average_speed"
-        priority:
-          - if: "!car_access"
-            multiply_by: 0.1
-
-  server.application_connectors:
-    - type: http
-      port: 8080
-      bind_host: localhost
+          - if: "true"
+            multiply_by: 1.3
