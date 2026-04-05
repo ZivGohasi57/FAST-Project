@@ -15,7 +15,7 @@ public class Main {
 
         FastRoutingEngine engine = new FastRoutingEngine(routineStrategy);
 
-        RouteRequest request = new RouteRequest(32.1668139, 34.9201287, 32.165000, 34.922000, false);
+        RouteRequest request = new RouteRequest(32.1715614, 34.8934286, 32.15526580810547, 34.89168930053711, false);
 
         System.out.println("--- Routine Profile ---");
         RouteResponse routineResponse = engine.getOptimalRoute(request);
