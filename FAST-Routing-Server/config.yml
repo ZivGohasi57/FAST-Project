@@ -1,25 +1,46 @@
+# FAST Routing Server — GraphHopper configuration reference
+#
+# NOTE: This file documents the routing logic but is no longer used directly.
+# The server is now embedded (FastRoutingEngineClient) and configured programmatically.
+#
+# Profiles and encoded values are defined in:
+#   routing/engine/FastRoutingEngineClient.java
+#   routing/AmbulanceImportRegistry.java
+#   routing/parsers/AmbulanceAccessParser.java    (emergency contraflow access)
+#   routing/parsers/AmbulanceSpeedParser.java     (emergency speed encoding)
+
 graphhopper:
   datareader.file: export.osm
   graph.location: graph-cache
   import.osm.ignored_highways: footway,cycleway,path,pedestrian,steps
-  graph.encoded_values: car_access, car_average_speed, road_class
+  graph.encoded_values: car_access, car_average_speed, ambulance_access, ambulance_average_speed, road_class, surface
 
   profiles:
+    # Routine profile — standard car routing, one-way restrictions obeyed.
+    # Priority check "!car_access = 0" ensures wrong-way directions are blocked.
     - name: ambulance_routine
       custom_model:
         distance_influence: 15
+        priority:
+          - if: "surface == UNPAVED"
+            multiply_by: 0.0
+          - if: "!car_access"
+            multiply_by: 0.0
         speed:
           - if: "true"
             limit_to: "car_average_speed"
 
+    # Emergency profile — uses ambulance_access (bidirectional) for contraflow.
+    # distance_influence = 0 means pure time optimisation (fastest arrival).
+    # Residential roads penalised to prefer main arteries.
     - name: ambulance_emergency
       custom_model:
         distance_influence: 0
         priority:
+          - if: "surface == UNPAVED"
+            multiply_by: 0.0
           - if: "road_class == RESIDENTIAL"
             multiply_by: 0.8
         speed:
           - if: "true"
-            limit_to: "car_average_speed"
-          - if: "true"
-            multiply_by: 1.3
+            limit_to: "ambulance_average_speed"

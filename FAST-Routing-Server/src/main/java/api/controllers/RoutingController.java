@@ -14,10 +14,14 @@ import routing.strategies.RoutineRoutingStrategy;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Map;
 
 public class RoutingController {
+
+    // Shared engine — built once at startup (loads / builds the graph from OSM)
+    private static final FastRoutingEngineClient ENGINE_CLIENT =
+            new FastRoutingEngineClient("export.osm", "graph-cache-v2");
 
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8082), 0);
@@ -30,21 +34,28 @@ public class RoutingController {
     static class RouteHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, OPTIONS");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type,Authorization");
+                exchange.sendResponseHeaders(204, -1);
+                return;
+            }
+
             if ("GET".equals(exchange.getRequestMethod())) {
                 Map<String, String> params = queryToMap(exchange.getRequestURI().getQuery());
 
                 double startLat = Double.parseDouble(params.get("startLat"));
                 double startLon = Double.parseDouble(params.get("startLon"));
-                double endLat = Double.parseDouble(params.get("endLat"));
-                double endLon = Double.parseDouble(params.get("endLon"));
+                double endLat   = Double.parseDouble(params.get("endLat"));
+                double endLon   = Double.parseDouble(params.get("endLon"));
                 boolean isEmergency = Boolean.parseBoolean(params.get("isEmergency"));
 
-                FastRoutingEngineClient client = new FastRoutingEngineClient("http://localhost:8080");
-                FastRoutingEngine engine = new FastRoutingEngine(new RoutineRoutingStrategy(client));
-
-                if (isEmergency) {
-                    engine.setStrategy(new EmergencyRoutingStrategy(client));
-                }
+                FastRoutingEngine engine = new FastRoutingEngine(
+                        isEmergency
+                                ? new EmergencyRoutingStrategy(ENGINE_CLIENT)
+                                : new RoutineRoutingStrategy(ENGINE_CLIENT)
+                );
 
                 RouteRequest request = new RouteRequest(startLat, startLon, endLat, endLon, isEmergency);
                 RouteResponse response = engine.getOptimalRoute(request);
@@ -56,7 +67,7 @@ public class RoutingController {
                 exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
                 byte[] responseBytes = jsonResponse.getBytes();
                 exchange.sendResponseHeaders(200, responseBytes.length);
-                
+
                 OutputStream os = exchange.getResponseBody();
                 os.write(responseBytes);
                 os.close();

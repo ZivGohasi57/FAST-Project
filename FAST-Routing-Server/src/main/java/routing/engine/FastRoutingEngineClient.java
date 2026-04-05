@@ -1,73 +1,134 @@
 package routing.engine;
 
+import com.graphhopper.GHRequest;
+import com.graphhopper.GHResponse;
+import com.graphhopper.GraphHopper;
+import com.graphhopper.GraphHopperConfig;
+import com.graphhopper.ResponsePath;
+import com.graphhopper.config.Profile;
+import com.graphhopper.json.Statement;
+import com.graphhopper.util.CustomModel;
+import com.graphhopper.util.PointList;
 import core.interfaces.IRoutingEngineClient;
 import core.models.Coordinate;
 import core.models.RouteRequest;
 import core.models.RouteResponse;
+import routing.AmbulanceImportRegistry;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonElement;
-
+/**
+ * Embedded GraphHopper routing engine client.
+ *
+ * Replaces the previous HTTP-based client that called the standalone GraphHopper server.
+ * By embedding GH directly we can register the AmbulanceImportRegistry, which adds:
+ *   - ambulance_access  (bidirectional — contraflow capability)
+ *   - ambulance_average_speed (same speeds as car, stored per-direction)
+ *
+ * Profiles
+ * --------
+ * ambulance_routine  : standard car routing, one-way restrictions respected.
+ * ambulance_emergency: ambulance vehicle, bidirectional (contraflow), speed-optimised,
+ *                      distance-influence = 0 (pure time minimisation).
+ */
 public class FastRoutingEngineClient implements IRoutingEngineClient {
 
-    private final String baseUrl;
-    private final HttpClient httpClient;
-    private final Gson gson;
+    private final GraphHopper hopper;
 
-    public FastRoutingEngineClient(String baseUrl) {
-        this.baseUrl = baseUrl;
-        this.httpClient = HttpClient.newHttpClient();
-        this.gson = new Gson();
+    /**
+     * @param osmFile      path to the OSM data file (e.g. "export.osm")
+     * @param graphCacheDir  directory for the graph cache (rebuilt automatically if encoded values change)
+     */
+    public FastRoutingEngineClient(String osmFile, String graphCacheDir) {
+        hopper = buildHopper(osmFile, graphCacheDir);
     }
+
+    // -------------------------------------------------------------------------
+    // IRoutingEngineClient
+    // -------------------------------------------------------------------------
 
     @Override
     public RouteResponse fetchRoute(RouteRequest request, String profileName) {
-        try {
-            String url = String.format("%s/route?point=%f,%f&point=%f,%f&profile=%s&points_encoded=false",
-                    baseUrl,
-                    request.getStartLat(), request.getStartLon(),
-                    request.getEndLat(), request.getEndLon(),
-                    profileName);
+        GHRequest ghRequest = new GHRequest(
+                request.getStartLat(), request.getStartLon(),
+                request.getEndLat(), request.getEndLon()
+        ).setProfile(profileName);
 
-            HttpRequest httpRequest = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .GET()
-                    .build();
+        GHResponse ghResponse = hopper.route(ghRequest);
 
-            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
-
-            JsonObject jsonObject = gson.fromJson(response.body(), JsonObject.class);
-            JsonArray paths = jsonObject.getAsJsonArray("paths");
-            JsonObject firstPath = paths.get(0).getAsJsonObject();
-
-            double distance = firstPath.get("distance").getAsDouble();
-            long time = firstPath.get("time").getAsLong();
-
-            JsonObject pointsObj = firstPath.getAsJsonObject("points");
-            JsonArray coordinatesArray = pointsObj.getAsJsonArray("coordinates");
-
-            List<Coordinate> pathCoordinates = new ArrayList<>();
-            for (JsonElement element : coordinatesArray) {
-                JsonArray coord = element.getAsJsonArray();
-                double lon = coord.get(0).getAsDouble();
-                double lat = coord.get(1).getAsDouble();
-                pathCoordinates.add(new Coordinate(lat, lon));
-            }
-
-            return new RouteResponse(distance, time, pathCoordinates);
-
-        } catch (Exception e) {
-            e.printStackTrace();
+        if (ghResponse.hasErrors()) {
+            System.err.println("[FAST] Routing error for profile '" + profileName + "': " + ghResponse.getErrors());
             return new RouteResponse(0.0, 0L, new ArrayList<>());
         }
+
+        ResponsePath path = ghResponse.getBest();
+        PointList points = path.getPoints();
+
+        List<Coordinate> coordinates = new ArrayList<>(points.size());
+        for (int i = 0; i < points.size(); i++) {
+            coordinates.add(new Coordinate(points.getLat(i), points.getLon(i)));
+        }
+
+        return new RouteResponse(path.getDistance(), path.getTime(), coordinates);
+    }
+
+    // -------------------------------------------------------------------------
+    // Internal setup
+    // -------------------------------------------------------------------------
+
+    private GraphHopper buildHopper(String osmFile, String graphCacheDir) {
+        GraphHopper gh = new GraphHopper();
+        gh.setOSMFile(osmFile);
+        gh.setGraphHopperLocation(graphCacheDir);
+
+        // Register our custom ambulance vehicle (ambulance_access + ambulance_average_speed)
+        gh.setImportRegistry(new AmbulanceImportRegistry());
+
+        // Encoded values: standard car + ambulance + road properties
+        GraphHopperConfig config = new GraphHopperConfig();
+        config.putObject("graph.encoded_values",
+                "car_access, car_average_speed, ambulance_access, ambulance_average_speed, road_class, surface");
+        config.putObject("import.osm.ignored_highways",
+                "footway,cycleway,path,pedestrian,steps");
+        gh.init(config);
+        // Override OSM file and cache dir (init() may reset them from the empty config)
+        gh.setOSMFile(osmFile);
+        gh.setGraphHopperLocation(graphCacheDir);
+
+        // --- ambulance_routine profile ---
+        // Standard car routing: obeys one-way streets (car_access = false blocks reverse).
+        // The priority check "!car_access → multiply 0" produces infinite weight for
+        // wrong-way directions, so the DirectedEdgeFilter correctly excludes them.
+        CustomModel routineModel = new CustomModel()
+                .setDistanceInfluence(15.0)
+                .addToPriority(Statement.If("surface == UNPAVED", Statement.Op.MULTIPLY, "0"))
+                .addToPriority(Statement.If("!car_access", Statement.Op.MULTIPLY, "0"))
+                .addToSpeed(Statement.If("true", Statement.Op.LIMIT, "car_average_speed"));
+
+        Profile routineProfile = new Profile("ambulance_routine")
+                .setWeighting("custom")
+                .setCustomModel(routineModel);
+
+        // --- ambulance_emergency profile ---
+        // Uses ambulance_average_speed (bidirectional on all motor roads) — contraflow.
+        // distance_influence = 0: pure time optimisation (fastest arrival, not shortest path).
+        // Residential roads slightly penalised (priority 0.8) to prefer main roads.
+        // !ambulance_access = 0: blocks roundabout wrong-way directions (encoded as false by AmbulanceAccessParser).
+        CustomModel emergencyModel = new CustomModel()
+                .setDistanceInfluence(0.0)
+                .addToPriority(Statement.If("surface == UNPAVED", Statement.Op.MULTIPLY, "0"))
+                .addToPriority(Statement.If("!ambulance_access", Statement.Op.MULTIPLY, "0"))
+                .addToPriority(Statement.If("road_class == RESIDENTIAL", Statement.Op.MULTIPLY, "0.8"))
+                .addToSpeed(Statement.If("true", Statement.Op.LIMIT, "ambulance_average_speed"));
+
+        Profile emergencyProfile = new Profile("ambulance_emergency")
+                .setWeighting("custom")
+                .setCustomModel(emergencyModel);
+
+        gh.setProfiles(routineProfile, emergencyProfile);
+
+        gh.importOrLoad();
+        return gh;
     }
 }

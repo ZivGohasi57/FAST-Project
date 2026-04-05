@@ -14,14 +14,21 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-// פונקציה חדשה שמעדכנת את מיקום המצלמה!
-function MapUpdater({ startPos }) {
+function ChangeView({ startPos, endPos, routeCoordinates }) {
   const map = useMap();
+
   useEffect(() => {
-    if (startPos) {
-      map.setView(startPos, map.getZoom()); // מזיז את המפה לנקודת ההתחלה החדשה
+    if (routeCoordinates && routeCoordinates.length > 0) {
+      const bounds = L.latLngBounds(routeCoordinates);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    } else if (startPos && endPos && startPos[0] && endPos[0]) {
+      const bounds = L.latLngBounds([startPos, endPos]);
+      map.fitBounds(bounds, { padding: [50, 50] });
+    } else if (startPos && startPos[0]) {
+      map.setView(startPos, 15);
     }
-  }, [startPos, map]);
+  }, [startPos, endPos, routeCoordinates, map]);
+
   return null;
 }
 
@@ -39,8 +46,7 @@ function MapDisplay({ routeCoordinates, startPos, endPos }) {
         attribution="&copy; OpenStreetMap contributors FAST Project"
       />
       
-      {/* הרכיב שדואג להזיז את המפה כשהקואורדינטות משתנות */}
-      <MapUpdater startPos={startPos} />
+      <ChangeView startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} />
       
       {startPos && <Marker position={startPos}><Popup>Start Location</Popup></Marker>}
       {endPos && <Marker position={endPos}><Popup>Destination</Popup></Marker>}

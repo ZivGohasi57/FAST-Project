@@ -6,7 +6,6 @@ function DriverView() {
   const [isEmergencyMode, setIsEmergencyMode] = useState(false);
   const [routeCoords, setRouteCoords] = useState([]);
   
-  // שים לב! עכשיו המספרים הם בתוך מרכאות (טקסט) כדי לאפשר הקלדה חופשית
   const [startPos, setStartPos] = useState({ lat: "32.1668139", lon: "34.9201287" });
   const [endPos, setEndPos] = useState({ lat: "32.1750000", lon: "34.9300000" });
 
@@ -15,17 +14,17 @@ function DriverView() {
       console.log("Fetching route...");
       const response = await axios.get(`http://localhost:8082/api/route`, {
         params: {
-          // כאן אנחנו הופכים את הטקסט למספר אמיתי עבור השרת
           startLat: parseFloat(currentStart.lat),
           startLon: parseFloat(currentStart.lon),
           endLat: parseFloat(currentEnd.lat),
           endLon: parseFloat(currentEnd.lon),
-          mode: emergencyState ? 'emergency' : 'routine' 
+          isEmergency: emergencyState 
         }
       });
 
-      if (response.data && response.data.coordinates) {
-        setRouteCoords(response.data.coordinates);
+      if (response.data && response.data.path) {
+        const formattedCoords = response.data.path.map(point => [point.lat, point.lon]);
+        setRouteCoords(formattedCoords);
       }
     } catch (error) {
       console.error("Error fetching route from API:", error);
@@ -67,29 +66,48 @@ function DriverView() {
         </button>
       </div>
 
-      <div style={{ padding: '0 20px', display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap' }}>
-        {/* שינינו את input ל- type="text" והורדנו את ה-parseFloat מה-onChange */}
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+      <div style={{ padding: '0 20px', display: 'flex', gap: '15px', marginBottom: '15px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <label><b>Start Lat:</b></label>
+          <input 
+            type="text" 
+            value={startPos.lat} 
+            onChange={(e) => setStartPos({ ...startPos, lat: e.target.value })}
+            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', width: '100px' }}
+          />
+        </div>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <label><b>Start Lon:</b></label>
+          <input 
+            type="text" 
+            value={startPos.lon} 
+            onChange={(e) => setStartPos({ ...startPos, lon: e.target.value })}
+            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', width: '100px' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: '15px' }}>
           <label><b>Dest Lat:</b></label>
           <input 
             type="text" 
             value={endPos.lat} 
             onChange={(e) => setEndPos({ ...endPos, lat: e.target.value })}
-            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
+            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', width: '100px' }}
           />
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <label><b>Dest Lon:</b></label>
           <input 
             type="text" 
             value={endPos.lon} 
             onChange={(e) => setEndPos({ ...endPos, lon: e.target.value })}
-            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc' }}
+            style={{ padding: '8px', borderRadius: '5px', border: '1px solid #ccc', width: '100px' }}
           />
         </div>
+        
         <button 
           onClick={handleCalculateRoute}
-          style={{ padding: '8px 15px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
+          style={{ padding: '8px 15px', marginLeft: '10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer' }}
         >
           Navigate
         </button>

@@ -8,7 +8,7 @@ import routing.strategies.RoutineRoutingStrategy;
 
 public class Main {
     public static void main(String[] args) {
-        FastRoutingEngineClient client = new FastRoutingEngineClient("http://localhost:8080");
+        FastRoutingEngineClient client = new FastRoutingEngineClient("export.osm", "graph-cache-v2");
 
         RoutineRoutingStrategy routineStrategy = new RoutineRoutingStrategy(client);
         EmergencyRoutingStrategy emergencyStrategy = new EmergencyRoutingStrategy(client);
