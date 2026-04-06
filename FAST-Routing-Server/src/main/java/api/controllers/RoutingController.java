@@ -25,7 +25,8 @@ public class RoutingController {
 
     public static void main(String[] args) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress(8082), 0);
-        server.createContext("/api/route", new RouteHandler());
+        server.createContext("/api/route",   new RouteHandler());
+        server.createContext("/api/signals", new SignalsHandler());
         server.setExecutor(null);
         server.start();
         System.out.println("FAST API Server is running on http://localhost:8082");
@@ -72,6 +73,27 @@ public class RoutingController {
                 os.write(responseBytes);
                 os.close();
             }
+        }
+    }
+
+    static class SignalsHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, OPTIONS");
+                exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type");
+                exchange.sendResponseHeaders(204, -1);
+                return;
+            }
+            Gson gson = new Gson();
+            String json = gson.toJson(ENGINE_CLIENT.getSignalIndex().getAllSignals());
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            byte[] bytes = json.getBytes();
+            exchange.sendResponseHeaders(200, bytes.length);
+            OutputStream os = exchange.getResponseBody();
+            os.write(bytes);
+            os.close();
         }
     }
 

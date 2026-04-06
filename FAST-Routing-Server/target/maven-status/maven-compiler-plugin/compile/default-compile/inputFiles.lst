@@ -6,6 +6,7 @@
 /Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/core/models/RouteRequest.java
 /Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/core/models/RouteResponse.java
 /Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/routing/AmbulanceImportRegistry.java
+/Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/routing/TrafficSignalIndex.java
 /Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/routing/engine/FastRoutingEngine.java
 /Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/routing/engine/FastRoutingEngineClient.java
 /Users/zivgohasi/Documents/Computer science courses/Third year/Third year - 1st semester/פרוייקט גמר למדעים 1 - 11402/FAST-Project/FAST-Routing-Server/src/main/java/routing/parsers/AmbulanceAccessParser.java
