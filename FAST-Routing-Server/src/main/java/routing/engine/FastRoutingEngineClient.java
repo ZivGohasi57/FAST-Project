@@ -10,6 +10,7 @@ import com.graphhopper.json.Statement;
 import com.graphhopper.util.CustomModel;
 import com.graphhopper.util.Instruction;
 import com.graphhopper.util.InstructionList;
+import com.graphhopper.util.RoundaboutInstruction;
 import com.graphhopper.util.PointList;
 import com.graphhopper.util.details.PathDetail;
 import core.interfaces.IRoutingEngineClient;
@@ -18,6 +19,7 @@ import core.models.RouteRequest;
 import core.models.RouteResponse;
 import core.models.StepInstruction;
 import routing.AmbulanceImportRegistry;
+import routing.DualCarriagewayDetector;
 import routing.TrafficSignalIndex;
 
 import java.util.ArrayList;
@@ -42,6 +44,13 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
     //   contraflow   : 0.7× ambulance_average_speed (caution, against flow)
     // GraphHopper therefore returns path.getTime() that already reflects real ambulance speed.
 
+    /**
+     * Minimum time saving (seconds) required before an ambulance may use contraflow.
+     * If the contraflow route does not beat the legal alternative by at least this amount,
+     * the router falls back to the law-abiding (routine) path.
+     */
+    private static final long CONTRAFLOW_MIN_SAVING_SEC = 30L;
+
     // Intersection delay constants (seconds)
     private static final double ROUTINE_SIGNAL_DELAY     = 90.0;   // red light wait
     private static final double ROUTINE_NO_SIGNAL_DELAY  = 20.0;   // yield / slow-roll
@@ -60,7 +69,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
      * @param graphCacheDir directory for the graph cache
      */
     public FastRoutingEngineClient(String osmFile, String graphCacheDir) {
-        hopper      = buildHopper(osmFile, graphCacheDir);
+        DualCarriagewayDetector dualDetector = DualCarriagewayDetector.build(osmFile);
+        hopper      = buildHopper(osmFile, graphCacheDir, dualDetector);
         signalIndex = new TrafficSignalIndex(osmFile);
     }
 
@@ -95,8 +105,38 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         }
 
         ResponsePath path = ghResponse.getBest();
-        PointList points = path.getPoints();
 
+        // ── Contraflow savings check ─────────────────────────────────────────
+        // Rule: contraflow is only permitted if it saves ≥ CONTRAFLOW_MIN_SAVING_SEC
+        // seconds compared to the best legal (routine) path.
+        // Implementation: compute both times and fall back to the legal path when
+        // the saving is insufficient.  One extra route computation happens only when
+        // the emergency path actually uses contraflow; normal-direction routes skip it.
+        if (isEmergency && pathUsesContraflow(path)) {
+            GHResponse legalResponse = hopper.route(new GHRequest(
+                    request.getStartLat(), request.getStartLon(),
+                    request.getEndLat(), request.getEndLon()
+            ).setProfile("ambulance_routine"));
+
+            if (!legalResponse.hasErrors()) {
+                ResponsePath legalPath   = legalResponse.getBest();
+                long         emergencyMs = calculateTime(path,      true);
+                long         legalMs     = calculateTime(legalPath, false);
+                long         savingSec   = legalMs - emergencyMs;
+
+                if (savingSec < CONTRAFLOW_MIN_SAVING_SEC) {
+                    System.out.println("[FAST] Contraflow saves only " + savingSec
+                            + "s < " + CONTRAFLOW_MIN_SAVING_SEC + "s threshold — using legal route.");
+                    // Fall back: legal route, treated as routine for time/step purposes
+                    path        = legalPath;
+                    isEmergency = false;
+                } else {
+                    System.out.println("[FAST] Contraflow approved: saves " + savingSec + "s.");
+                }
+            }
+        }
+
+        PointList points = path.getPoints();
         List<Coordinate> coordinates = new ArrayList<>(points.size());
         for (int i = 0; i < points.size(); i++) {
             coordinates.add(new Coordinate(points.getLat(i), points.getLon(i)));
@@ -106,6 +146,20 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         List<StepInstruction> steps = buildSteps(path, isEmergency);
 
         return new RouteResponse(path.getDistance(), timeSec, coordinates, steps);
+    }
+
+    /**
+     * Returns true when any edge in the path is traversed against its car-legal direction
+     * (i.e., the route actually uses a contraflow segment).
+     * Requires that car_access PathDetails were requested before routing.
+     */
+    private boolean pathUsesContraflow(ResponsePath path) {
+        Map<String, List<PathDetail>> details = path.getPathDetails();
+        if (details == null) return false;
+        for (PathDetail detail : details.getOrDefault("car_access", Collections.emptyList())) {
+            if (Boolean.FALSE.equals(detail.getValue())) return true;
+        }
+        return false;
     }
 
     // -------------------------------------------------------------------------
@@ -157,7 +211,12 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
                 }
             }
 
-            steps.add(new StepInstruction(instr.getSign(), instr.getName(), distanceTo, contraflow));
+            // Extract roundabout exit number (only present on USE_ROUNDABOUT instructions)
+            int exitNumber = (instr instanceof RoundaboutInstruction)
+                    ? ((RoundaboutInstruction) instr).getExitNumber()
+                    : 0;
+
+            steps.add(new StepInstruction(instr.getSign(), instr.getName(), distanceTo, contraflow, exitNumber));
 
             ptIdx = (segEnd > ptIdx) ? segEnd : ptIdx + 1;
         }
@@ -213,12 +272,12 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
     // Internal setup
     // -------------------------------------------------------------------------
 
-    private GraphHopper buildHopper(String osmFile, String graphCacheDir) {
+    private GraphHopper buildHopper(String osmFile, String graphCacheDir, DualCarriagewayDetector dualDetector) {
         GraphHopper gh = new GraphHopper();
         gh.setOSMFile(osmFile);
         gh.setGraphHopperLocation(graphCacheDir);
 
-        gh.setImportRegistry(new AmbulanceImportRegistry());
+        gh.setImportRegistry(new AmbulanceImportRegistry(dualDetector));
 
         GraphHopperConfig config = new GraphHopperConfig();
         config.putObject("graph.encoded_values",

@@ -5,15 +5,7 @@ import MapDisplay from '../components/MapDisplay';
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 const API_BASE  = 'http://localhost:8082';
 
-// ── Turn-sign helpers ─────────────────────────────────────────────────────────
-const SIGN_ARROW = {
-  [-3]: '↰', [-2]: '←', [-1]: '↖',
-  [0]:  '↑',
-  [1]:  '↗', [2]:  '→', [3]:  '↱',
-  [4]:  '🏁',
-  [6]:  '↻', [-6]: '↺',
-  [7]:  '↖', [8]:  '↗',
-};
+// ── Turn sign → Hebrew text ───────────────────────────────────────────────────
 const SIGN_TEXT = {
   [-3]: 'פנה חדה שמאלה',
   [-2]: 'פנה שמאלה',
@@ -23,13 +15,94 @@ const SIGN_TEXT = {
   [2]:  'פנה ימינה',
   [3]:  'פנה חדה ימינה',
   [4]:  'הגעת ליעד',
-  [6]:  'היכנס לכיכר',
+  [6]:  'כיכר',
   [-6]: 'צא מהכיכר',
   [7]:  'שמור שמאלה',
   [8]:  'שמור ימינה',
 };
-const signArrow = (sign) => SIGN_ARROW[sign] ?? '↑';
-const signText  = (sign) => SIGN_TEXT[sign]  ?? 'המשך';
+const signText = (sign) => SIGN_TEXT[sign] ?? 'המשך';
+
+// ── SVG arrow — rotates to point in the turn direction ───────────────────────
+// Rotation degrees (clockwise from "up") per GraphHopper sign:
+const SIGN_ROTATION = {
+  [-3]: -130, [-2]: -90, [-1]: -45,
+  [0]:    0,
+  [1]:   45,  [2]:  90, [3]: 130,
+  [-6]:  60,  // leave roundabout
+  [7]:  -45,  [8]:  45,
+};
+
+function TurnArrow({ sign, size = 34, color = 'white' }) {
+  // Destination pin
+  if (sign === 4) {
+    return (
+      <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+        <circle cx="16" cy="12" r="8" stroke={color} strokeWidth="2.5"/>
+        <circle cx="16" cy="12" r="3.5" fill={color}/>
+        <line x1="16" y1="20" x2="16" y2="30" stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
+      </svg>
+    );
+  }
+
+  // Roundabout: circular arrow with exit number
+  if (sign === 6) return null; // handled by RoundaboutArrow in InstructionBanner
+
+  const rot = SIGN_ROTATION[sign] ?? 0;
+  return (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none"
+         style={{ transform: `rotate(${rot}deg)`, display: 'block' }}>
+      {/* Stem */}
+      <line x1="16" y1="27" x2="16" y2="9" stroke={color} strokeWidth="3" strokeLinecap="round"/>
+      {/* Arrowhead */}
+      <path d="M9 17 L16 7 L23 17" stroke={color} strokeWidth="3"
+            strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    </svg>
+  );
+}
+
+// ── Roundabout SVG icon — circular arrow (CCW) with exit number ───────────────
+function RoundaboutArrow({ exitNumber = 0, size = 36, color = 'white' }) {
+  const cx = 18, cy = 18, r = 10;
+  // SVG arc: counterclockwise 300° (leaving a gap at bottom for entry road)
+  // Arc from (cx+r, cy) → same point minus a small gap, large arc, CCW sweep (0)
+  // We use stroke-dasharray on the full circle to simulate the 300° arc
+  const circ = 2 * Math.PI * r;
+  const dashLen = circ * (300 / 360);
+  const gapLen  = circ - dashLen;
+  // Offset so the gap is at the bottom center
+  const offset  = circ * (90 / 360) + gapLen / 2;
+
+  return (
+    <div style={{ position: 'relative', width: size, height: size }}>
+      <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
+        {/* CCW ring (gap at the bottom where the entry road is) */}
+        <circle
+          cx={cx} cy={cy} r={r}
+          stroke={color} strokeWidth="2.5" strokeLinecap="round"
+          strokeDasharray={`${dashLen} ${gapLen}`}
+          strokeDashoffset={offset}
+          transform={`scale(-1,1) translate(-36,0)`}  /* flip X → makes it CCW visually */
+        />
+        {/* Arrowhead at top of circle, pointing left (CCW direction) */}
+        <path d={`M ${cx-5} ${cy-r-3} L ${cx} ${cy-r} L ${cx-3} ${cy-r+5}`}
+              stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Entry road from bottom */}
+        <line x1={cx} y1="36" x2={cx} y2={cy+r+2}
+              stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
+      </svg>
+      {/* Exit number centred inside the circle */}
+      {exitNumber > 0 && (
+        <div style={{
+          position: 'absolute', top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          color, fontSize: Math.round(size * 0.36), fontWeight: 800, lineHeight: 1,
+        }}>
+          {exitNumber}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ── Address search input with Nominatim autocomplete ─────────────────────────
 function AddressInput({ icon, value, onChange, onSelect, placeholder, inputRef }) {
@@ -134,6 +207,21 @@ function InstructionBanner({ instructions, isEmergency }) {
                                : 'rgba(30,30,30,0.88)';
   const border  = isContraflow ? '2px solid #ff6b6b' : 'none';
 
+  const isRoundabout = next.sign === 6 || next.sign === -6;
+  const iconColor    = isContraflow ? '#ffcdd2' : 'white';
+
+  // Build instruction label
+  let instrLabel;
+  if (next.sign === 6) {
+    instrLabel = next.exitNumber > 0
+      ? `כיכר — יציאה ${next.exitNumber}`
+      : 'היכנס לכיכר';
+    if (next.streetName) instrLabel += ` → ${next.streetName}`;
+  } else {
+    instrLabel = signText(next.sign);
+    if (next.streetName) instrLabel += ` — ${next.streetName}`;
+  }
+
   return (
     <div style={{
       position: 'absolute', top: 16, left: 16, right: 16,
@@ -146,13 +234,12 @@ function InstructionBanner({ instructions, isEmergency }) {
       display: 'flex', alignItems: 'center', gap: 12,
       backdropFilter: 'blur(6px)',
     }}>
-      {/* Arrow */}
-      <div style={{
-        fontSize: 28, lineHeight: 1,
-        color: isContraflow ? '#ffcdd2' : 'white',
-        minWidth: 34, textAlign: 'center',
-      }}>
-        {signArrow(next.sign)}
+      {/* Direction icon */}
+      <div style={{ flexShrink: 0, width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {isRoundabout
+          ? <RoundaboutArrow exitNumber={next.exitNumber ?? 0} size={36} color={iconColor} />
+          : <TurnArrow sign={next.sign} size={34} color={iconColor} />
+        }
       </div>
 
       {/* Text block */}
@@ -166,14 +253,10 @@ function InstructionBanner({ instructions, isEmergency }) {
           color: 'white', fontSize: 15, fontWeight: 700,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
-          {signText(next.sign)}
-          {next.streetName ? ` — ${next.streetName}` : ''}
+          {instrLabel}
         </div>
         {isContraflow && (
-          <div style={{
-            color: '#ffcdd2', fontSize: 11, marginTop: 3,
-            display: 'flex', alignItems: 'center', gap: 4,
-          }}>
+          <div style={{ color: '#ffcdd2', fontSize: 11, marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
             ⚠️ פנייה מסוכנת — נסיעה נגד כיוון התנועה
           </div>
         )}

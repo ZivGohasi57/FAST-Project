@@ -11,23 +11,27 @@ import routing.parsers.AmbulanceSpeedParser;
 /**
  * Extends GraphHopper's default import registry to add support for the "ambulance" vehicle type.
  *
- * This allows GH to build the graph with two additional encoded values:
- *   - ambulance_access   : bidirectional access for all motor roads (contraflow)
- *   - ambulance_average_speed : same speed values as car, but stored independently
- *
- * The emergency routing profile uses these values, enabling contraflow while
- * the routine profile continues using car_access (one-way restricted).
+ * Accepts a DualCarriagewayDetector so the AmbulanceAccessParser can enforce:
+ *   1. No contraflow on non-urban roads (motorway / trunk).
+ *   2. No contraflow when a parallel road in the correct direction exists.
  */
 public class AmbulanceImportRegistry extends DefaultImportRegistry {
+
+    private final DualCarriagewayDetector dualDetector;
+
+    public AmbulanceImportRegistry(DualCarriagewayDetector dualDetector) {
+        this.dualDetector = dualDetector;
+    }
 
     @Override
     public ImportUnit createImportUnit(String name) {
 
         if (VehicleAccess.key("ambulance").equals(name)) {
+            final DualCarriagewayDetector det = dualDetector;
             return ImportUnit.create(
                 name,
                 props -> VehicleAccess.create("ambulance"),
-                (lookup, props) -> new AmbulanceAccessParser(lookup, props),
+                (lookup, props) -> new AmbulanceAccessParser(lookup, props, det),
                 "roundabout"
             );
         }

@@ -10,50 +10,62 @@ import com.graphhopper.routing.util.TransportationMode;
 import com.graphhopper.routing.util.WayAccess;
 import com.graphhopper.routing.util.parsers.CarAccessParser;
 import com.graphhopper.util.PMap;
+import routing.DualCarriagewayDetector;
 
 /**
  * Custom access parser for ambulance vehicles in EMERGENCY mode.
  *
- * Key behavior vs standard CarAccessParser:
- * - CONTRAFLOW: Both directions are set accessible, allowing wrong-way driving.
- * - NO-GO zones: pedestrian ways and unpaved roads are blocked (design doc safety requirement).
- * - All motor roads (incl. one-way streets) are accessible in both directions.
+ * Contraflow rules (both must hold for contraflow to be permitted):
+ *
+ *   1. URBAN ROAD ONLY
+ *      motorway / motorway_link / trunk / trunk_link  →  contraflow BLOCKED
+ *      (These are inter-city or controlled-access roads; too dangerous.)
+ *
+ *   2. NO PARALLEL ROAD IN THE CORRECT DIRECTION
+ *      If there is another one-way road within ~40 m running in the opposite
+ *      direction (dual carriageway pattern), contraflow is BLOCKED.
+ *      The DualCarriagewayDetector pre-computes this from the OSM data.
+ *
+ * Additionally:
+ *   - Roundabouts always respect one-way direction (even in emergency).
+ *   - Pedestrian / cycling / unpaved ways are blocked.
  */
 public class AmbulanceAccessParser extends CarAccessParser {
 
-    public AmbulanceAccessParser(EncodedValueLookup lookup, PMap properties) {
+    private final DualCarriagewayDetector dualDetector;
+
+    public AmbulanceAccessParser(EncodedValueLookup lookup, PMap properties,
+                                 DualCarriagewayDetector dualDetector) {
         super(
             lookup.getBooleanEncodedValue(VehicleAccess.key("ambulance")),
             lookup.getBooleanEncodedValue(Roundabout.KEY),
             properties,
             OSMRoadAccessParser.toOSMRestrictions(TransportationMode.CAR)
         );
+        this.dualDetector = dualDetector;
     }
 
-    /**
-     * Determines if a road is accessible for ambulances.
-     * Blocks pedestrian ways and unpaved roads per design doc safety constraints.
-     */
+    // ── Accessibility check ───────────────────────────────────────────────────
+
     @Override
     public WayAccess getAccess(ReaderWay way) {
         String highway = way.getTag("highway", "");
 
-        // No-go zones: pedestrian and cycling infrastructure
-        if (highway.equals("steps") || highway.equals("footway") ||
-                highway.equals("path") || highway.equals("pedestrian") ||
-                highway.equals("cycleway")) {
+        // Pedestrian / cycling infrastructure
+        if ("steps".equals(highway) || "footway".equals(highway) ||
+                "path".equals(highway) || "pedestrian".equals(highway) ||
+                "cycleway".equals(highway)) {
             return WayAccess.CAN_SKIP;
         }
 
-        // No-go zones: unpaved roads (safety requirement from design doc)
+        // Unpaved surfaces
         String surface = way.getTag("surface", "");
-        if (surface.equals("unpaved") || surface.equals("dirt") ||
-                surface.equals("gravel") || surface.equals("grass") ||
-                surface.equals("sand") || surface.equals("ground")) {
+        if ("unpaved".equals(surface) || "dirt".equals(surface) ||
+                "gravel".equals(surface) || "grass".equals(surface) ||
+                "sand".equals(surface)  || "ground".equals(surface)) {
             return WayAccess.CAN_SKIP;
         }
 
-        // Must be a motor road
         if (!highwayValues.contains(highway)) {
             return WayAccess.CAN_SKIP;
         }
@@ -61,28 +73,44 @@ public class AmbulanceAccessParser extends CarAccessParser {
         return WayAccess.WAY;
     }
 
-    /**
-     * Sets BOTH directions accessible for all allowed motor roads.
-     * Exception: roundabouts always obey their one-way direction (too dangerous to contraflow).
-     */
+    // ── Tag handling (direction encoding) ────────────────────────────────────
+
     @Override
     public void handleWayTags(int edgeId, EdgeIntAccess edgeIntAccess, ReaderWay way) {
         if (getAccess(way) == WayAccess.CAN_SKIP) {
             accessEnc.setBool(false, edgeId, edgeIntAccess, false);
-            accessEnc.setBool(true, edgeId, edgeIntAccess, false);
+            accessEnc.setBool(true,  edgeId, edgeIntAccess, false);
             return;
         }
 
-        // Roundabouts: respect one-way direction even in emergency mode
-        boolean isRoundabout = way.hasTag("junction", "roundabout") || way.hasTag("junction", "circular");
+        // ── Rule 0: roundabouts — always one-way, even in emergency ───────────
+        boolean isRoundabout = way.hasTag("junction", "roundabout")
+                            || way.hasTag("junction", "circular");
         if (isRoundabout) {
-            // Let the parent CarAccessParser handle it — it correctly encodes one-way roundabout direction
             super.handleWayTags(edgeId, edgeIntAccess, way);
             return;
         }
 
-        // CONTRAFLOW: allow both forward and backward traversal on regular roads
+        String highway = way.getTag("highway", "");
+
+        // ── Rule 1: non-urban roads (motorway / trunk) — no contraflow ────────
+        boolean isNonUrban = highway.startsWith("motorway") || highway.startsWith("trunk");
+        if (isNonUrban) {
+            super.handleWayTags(edgeId, edgeIntAccess, way);
+            return;
+        }
+
+        // ── Rule 2: dual carriageway — parallel road exists — no contraflow ───
+        // Only applies to one-way roads (bidirectional roads have no contraflow issue).
+        boolean isOneWay = way.hasTag("oneway", "yes") || way.hasTag("oneway", "1")
+                        || way.hasTag("oneway", "true");
+        if (isOneWay && dualDetector.isDual(way.getId())) {
+            super.handleWayTags(edgeId, edgeIntAccess, way);
+            return;
+        }
+
+        // ── CONTRAFLOW ALLOWED: urban road, no parallel road ─────────────────
         accessEnc.setBool(false, edgeId, edgeIntAccess, true);
-        accessEnc.setBool(true, edgeId, edgeIntAccess, true);
+        accessEnc.setBool(true,  edgeId, edgeIntAccess, true);
     }
 }
