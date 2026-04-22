@@ -185,5 +185,5 @@ App runs on **http://localhost:5173**
 
 **Academic Capstone Project**
 
-Copyright (c) 2025 Ziv Gohasi.
+Copyright (c) 2025 Ziv Gohasi & Tomer Stoianov.
 Built as a final-year project for the Computer Science program.
