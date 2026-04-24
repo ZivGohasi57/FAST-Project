@@ -85,7 +85,7 @@ FAST-Project/
 │   │       ├── AmbulanceImportRegistry.java       # Custom vehicle type registration
 │   │       ├── DualCarriagewayDetector.java       # Divided-road OSM parser
 │   │       └── TrafficSignalIndex.java            # Traffic light OSM parser
-│   ├── export.osm                # OSM road data — Petah Tikva, Israel
+│   ├── export.osm                # OSM road data — Hod HaSharon, Israel
 │   ├── graph-cache-v2/           # Pre-built GraphHopper road network cache
 │   ├── graphhopper-web-11.0.jar
 │   └── pom.xml
@@ -122,7 +122,7 @@ FAST-Project/
                                                           └──────────────────────────┘
                                                                        │
                                                           ┌────────────┘
-                                                          │  export.osm (Petah Tikva)
+                                                          │  export.osm (Hod HaSharon)
                                                           │  graph-cache-v2/
                                                           └──────────────────────────
 ```
