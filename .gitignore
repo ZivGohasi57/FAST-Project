@@ -52,3 +52,5 @@ graph-cache-v2/
 # Generated / Dev utility files
 # ============================================
 files_list.txt
+STAM.txt
+collect_all.py
