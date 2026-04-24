@@ -1,3 +1,6 @@
 graphhopper-web-*.jar
 export.osm
 graph-cache/
+graph-cache-v2/
+*.class
+target/
