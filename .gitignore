@@ -44,7 +44,6 @@ target/
 # GraphHopper / Map data (large binaries)
 # ============================================
 graphhopper-web-*.jar
-export.osm
 graph-cache/
 graph-cache-v2/
 
