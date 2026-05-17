@@ -51,6 +51,7 @@ public class RoutingController {
         if ("OPTIONS".equals(ex.getRequestMethod())) {
             cors(ex);
             ex.sendResponseHeaders(204, -1);
+            ex.getResponseBody().close();
             return true;
         }
         return false;
