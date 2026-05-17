@@ -1,4 +1,5 @@
-const BASE_URL = 'http://localhost:8082/api/route';
+import { API_BASE } from '../config.js';
+const BASE_URL = `${API_BASE}/api/route`;
 
 export const getRoute = async (start, end, isEmergency) => {
     try {

@@ -2,8 +2,9 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
 import MapDisplay from '../components/MapDisplay';
 
+import { API_BASE } from '../config.js';
+
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
-const API_BASE  = 'http://localhost:8082';
 
 // ── Turn sign → Hebrew text ───────────────────────────────────────────────────
 const SIGN_TEXT = {
@@ -275,22 +276,80 @@ export default function DriverView() {
   const [trafficSignals, setTrafficSignals] = useState([]);
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState(null);
+  const [activeCase,     setActiveCase]     = useState(null);
 
   const [startText, setStartText] = useState('');
   const [endText,   setEndText]   = useState('');
   const [startPos,  setStartPos]  = useState(null);
   const [endPos,    setEndPos]    = useState(null);
 
-  const endInputRef = useRef(null);
+  const endInputRef    = useRef(null);
+  const prevCaseIdRef  = useRef(null);
+  const [newCaseAlert, setNewCaseAlert] = useState(false);
 
   // Fetch traffic signals once at startup
   useEffect(() => {
     axios.get(`${API_BASE}/api/signals`)
       .then(res => setTrafficSignals(res.data))
-      .catch(() => {}); // non-critical, fail silently
+      .catch(() => {});
   }, []);
 
-  // Auto-route once both points selected
+  // Auto-GPS: set start position from device and update server every 30s
+  useEffect(() => {
+    const auth  = JSON.parse(localStorage.getItem('fastAuth') || '{}');
+    const ambId = auth.ambulanceId;
+    const update = () => {
+      if (!navigator.geolocation) return;
+      navigator.geolocation.getCurrentPosition(({ coords }) => {
+        const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
+        setStartPos(pos);
+        setStartText('📍 מיקום נוכחי');
+        if (ambId) {
+          axios.post(`${API_BASE}/api/ambulances/location`, {
+            ambulanceId: ambId, lat: coords.latitude, lon: coords.longitude,
+          }).catch(() => {});
+        }
+      }, () => {});
+    };
+    update();
+    const iv = setInterval(update, 30000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Poll active case for dispatcher updates every 5s
+  useEffect(() => {
+    const auth  = JSON.parse(localStorage.getItem('fastAuth') || '{}');
+    const ambId = auth.ambulanceId;
+    if (!ambId) return;
+    const poll = () =>
+      axios.get(`${API_BASE}/api/cases/active`, { params: { ambulanceId: ambId } })
+        .then(r => setActiveCase(r.data))
+        .catch(() => {});
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Auto-navigate when dispatcher assigns a new case
+  useEffect(() => {
+    if (!activeCase) { prevCaseIdRef.current = null; return; }
+    if (activeCase.id === prevCaseIdRef.current) return;
+    prevCaseIdRef.current = activeCase.id;
+    setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
+    setEndText(activeCase.address);
+    setIsEmergency(activeCase.urgency === 'emergency');
+    setNewCaseAlert(true);
+    setSearchOpen(false);
+  }, [activeCase]);
+
+  // Auto-dismiss new case alert after 8s
+  useEffect(() => {
+    if (!newCaseAlert) return;
+    const t = setTimeout(() => setNewCaseAlert(false), 8000);
+    return () => clearTimeout(t);
+  }, [newCaseAlert]);
+
+  // Auto-route once both GPS position and destination are set
   useEffect(() => {
     if (startPos && endPos) fetchRoute(isEmergency, startPos, endPos);
   }, [startPos, endPos]); // eslint-disable-line
@@ -362,6 +421,128 @@ export default function DriverView() {
       {/* ── Instruction banner (top) ── */}
       {instructions.length > 0 && (
         <InstructionBanner instructions={instructions} isEmergency={isEmergency} />
+      )}
+
+      {/* ── Dispatcher notes banner (last update only) ── */}
+      {activeCase?.notes && (() => { const last = activeCase.notes.split('\n').filter(Boolean).pop(); return last ? (
+        <div style={{
+          position: 'absolute',
+          top: instructions.length > 0 ? 102 : 16,
+          left: 16, right: 16,
+          background: 'rgba(255, 149, 0, 0.94)',
+          backdropFilter: 'blur(6px)',
+          borderRadius: 14,
+          padding: '10px 16px',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+          zIndex: 590,
+          direction: 'rtl',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
+        }}>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
+          <div>
+            <div style={{ color: 'white', fontWeight: 700, fontSize: 11, marginBottom: 3, opacity: 0.85 }}>עדכון מוקד</div>
+            <div style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>{last}</div>
+          </div>
+        </div>
+      ) : null; })()}
+
+      {/* ── New case alert overlay ── */}
+      {newCaseAlert && activeCase && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(3px)',
+          zIndex: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}
+          onClick={() => setNewCaseAlert(false)}
+        >
+          <div style={{
+            background: 'white',
+            borderRadius: 22,
+            padding: '28px 26px 22px',
+            maxWidth: 360, width: '100%',
+            boxShadow: '0 12px 48px rgba(0,0,0,0.35)',
+            direction: 'rtl',
+            animation: 'slideUp 0.3s ease',
+          }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Icon */}
+            <div style={{ textAlign: 'center', fontSize: 52, lineHeight: 1, marginBottom: 14 }}>
+              {activeCase.urgency === 'emergency' ? '🚨' : '📋'}
+            </div>
+
+            {/* Title */}
+            <div style={{
+              textAlign: 'center',
+              fontSize: 20, fontWeight: 800,
+              color: activeCase.urgency === 'emergency' ? '#ff3b30' : '#1a1a2e',
+              marginBottom: 6,
+            }}>
+              קריאה חדשה התקבלה
+            </div>
+
+            {/* Urgency badge */}
+            <div style={{ textAlign: 'center', marginBottom: 18 }}>
+              <span style={{
+                display: 'inline-block',
+                background: activeCase.urgency === 'emergency' ? '#fff0ef' : '#f0f9f0',
+                color: activeCase.urgency === 'emergency' ? '#ff3b30' : '#34c759',
+                border: `1.5px solid ${activeCase.urgency === 'emergency' ? '#ff3b30' : '#34c759'}`,
+                borderRadius: 20, padding: '2px 12px',
+                fontSize: 12, fontWeight: 700,
+              }}>
+                {activeCase.urgency === 'emergency' ? 'חירום' : 'שגרה'}
+              </span>
+            </div>
+
+            {/* Address */}
+            <div style={{
+              background: '#f5f7fa', borderRadius: 12, padding: '12px 14px',
+              marginBottom: 12,
+            }}>
+              <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 600 }}>כתובת האירוע</div>
+              <div style={{ color: '#1a1a2e', fontSize: 15, fontWeight: 700 }}>{activeCase.address}</div>
+            </div>
+
+            {/* Patient details */}
+            {activeCase.patientDetails && (
+              <div style={{
+                background: '#f5f7fa', borderRadius: 12, padding: '10px 14px',
+                marginBottom: 12,
+              }}>
+                <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 600 }}>פרטי מטופל</div>
+                <div style={{ color: '#333', fontSize: 13 }}>{activeCase.patientDetails}</div>
+              </div>
+            )}
+
+            {/* Auto-nav notice */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+              color: '#007aff', fontSize: 13, fontWeight: 600, marginBottom: 20,
+            }}>
+              <span style={{ fontSize: 16 }}>🧭</span>
+              <span>הניווט מתחיל אוטומטית…</span>
+            </div>
+
+            {/* Dismiss button */}
+            <button
+              onClick={() => setNewCaseAlert(false)}
+              style={{
+                width: '100%', padding: '13px',
+                background: activeCase.urgency === 'emergency'
+                  ? 'linear-gradient(135deg,#ff3b30,#ff6b35)'
+                  : 'linear-gradient(135deg,#007aff,#5ac8fa)',
+                color: 'white', border: 'none', borderRadius: 14,
+                fontWeight: 700, fontSize: 15, cursor: 'pointer',
+              }}
+            >
+              הבנתי, נווט
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Bottom sheet ── */}
@@ -492,6 +673,10 @@ export default function DriverView() {
         @keyframes emergencyPulse {
           0%,100% { box-shadow: 0 0 0px rgba(255,59,48,0); }
           50%      { box-shadow: 0 0 10px rgba(255,59,48,0.6); }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(30px); }
+          to   { opacity: 1; transform: translateY(0); }
         }
         input::placeholder { color: #bbb; }
       `}</style>
