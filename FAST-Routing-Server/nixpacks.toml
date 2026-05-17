@@ -1,0 +1,5 @@
+[phases.build]
+cmds = ["mvn package dependency:copy-dependencies -DskipTests -DoutputDirectory=target/lib"]
+
+[start]
+cmd = "java -Xmx400m -cp target/fast-routing-1.0-SNAPSHOT.jar:target/lib/* api.controllers.RoutingController"

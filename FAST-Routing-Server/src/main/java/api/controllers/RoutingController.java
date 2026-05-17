@@ -22,7 +22,8 @@ public class RoutingController {
     static final Gson      GSON = new Gson();
 
     public static void main(String[] args) throws IOException {
-        HttpServer server = HttpServer.create(new InetSocketAddress(8082), 0);
+        int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "8082"));
+        HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/api/route",      new RouteHandler());
         server.createContext("/api/signals",    new SignalsHandler());
         server.createContext("/api/auth/login", new LoginHandler());
@@ -30,9 +31,10 @@ public class RoutingController {
         server.createContext("/api/cases",      new CaseHandler());
         server.createContext("/api/eta",        new EtaHandler());
         server.createContext("/api/users",      new UserHandler());
+        server.createContext("/api/nogozones",  new NoGoZoneHandler());
         server.setExecutor(null);
         server.start();
-        System.out.println("FAST API Server is running on http://localhost:8082");
+        System.out.println("FAST API Server is running on port " + port);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -105,6 +107,18 @@ public class RoutingController {
                             : new RoutineRoutingStrategy(ENGINE_CLIENT));
             RouteResponse resp = engine.getOptimalRoute(
                     new RouteRequest(startLat, startLon, endLat, endLon, isEmergency));
+
+            // No-go zone enforcement: if emergency route passes through a restricted zone,
+            // fall back to routine (no contraflow allowed in that area)
+            if (isEmergency && resp.getPath() != null && !DS.allNoGoZones().isEmpty()) {
+                boolean blocked = resp.getPath().stream()
+                    .anyMatch(c -> DS.allNoGoZones().stream()
+                        .anyMatch(z -> z.contains(c.getLat(), c.getLon())));
+                if (blocked) {
+                    resp = new FastRoutingEngine(new RoutineRoutingStrategy(ENGINE_CLIENT))
+                        .getOptimalRoute(new RouteRequest(startLat, startLon, endLat, endLon, false));
+                }
+            }
             sendJson(exchange, resp);
         }
     }
@@ -227,6 +241,15 @@ public class RoutingController {
                 DS.completeCase(json.get("caseId").getAsString());
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/update".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.updateCaseNotes(
+                    json.get("caseId").getAsString(),
+                    json.has("notes")          ? json.get("notes").getAsString()          : null,
+                    json.has("patientDetails") ? json.get("patientDetails").getAsString() : null
+                );
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }
@@ -323,6 +346,40 @@ public class RoutingController {
             } else if ("DELETE".equals(method)) {
                 Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
                 DS.deleteUser(params.get("id"));
+                sendStatus(ex, 200);
+
+            } else {
+                sendStatus(ex, 405);
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // No-Go Zones (manager)
+    // ─────────────────────────────────────────────────────────────────────
+
+    static class NoGoZoneHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            if (handleOptions(ex)) return;
+            String method = ex.getRequestMethod();
+
+            if ("GET".equals(method)) {
+                sendJson(ex, DS.allNoGoZones());
+
+            } else if ("POST".equals(method)) {
+                JsonObject json = body(ex);
+                core.models.NoGoZone z = new core.models.NoGoZone();
+                z.setName(   json.get("name").getAsString());
+                z.setMinLat( json.get("minLat").getAsDouble());
+                z.setMaxLat( json.get("maxLat").getAsDouble());
+                z.setMinLon( json.get("minLon").getAsDouble());
+                z.setMaxLon( json.get("maxLon").getAsDouble());
+                sendJson(ex, DS.addNoGoZone(z));
+
+            } else if ("DELETE".equals(method)) {
+                Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
+                DS.deleteNoGoZone(params.get("id"));
                 sendStatus(ex, 200);
 
             } else {

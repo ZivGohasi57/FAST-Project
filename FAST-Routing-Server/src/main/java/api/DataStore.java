@@ -2,6 +2,7 @@ package api;
 
 import core.models.AmbulanceInfo;
 import core.models.CaseRecord;
+import core.models.NoGoZone;
 import core.models.User;
 
 import java.util.*;
@@ -16,9 +17,11 @@ public class DataStore {
     private final Map<String, User>          users      = new ConcurrentHashMap<>();
     private final Map<String, CaseRecord>    cases      = new ConcurrentHashMap<>();
     private final Map<String, AmbulanceInfo> ambulances = new ConcurrentHashMap<>();
+    private final Map<String, NoGoZone>      noGoZones  = new ConcurrentHashMap<>();
     private final Map<String, String>        sessions   = new ConcurrentHashMap<>(); // token→userId
     private final AtomicInteger              caseSeq    = new AtomicInteger(1);
     private final AtomicInteger              userSeq    = new AtomicInteger(10);
+    private final AtomicInteger              zoneSeq    = new AtomicInteger(1);
 
     private DataStore() {
         // ── Seed users ────────────────────────────────────────────────────
@@ -80,6 +83,28 @@ public class DataStore {
                           && "active".equals(c.getStatus()))
                 .findFirst().orElse(null);
     }
+
+    public void updateCaseNotes(String caseId, String notes, String patientDetails) {
+        CaseRecord c = cases.get(caseId);
+        if (c == null) return;
+        if (notes != null) {
+            String ts  = new java.text.SimpleDateFormat("HH:mm").format(new java.util.Date());
+            String cur = c.getNotes();
+            c.setNotes(cur == null || cur.isEmpty()
+                ? "[" + ts + "] " + notes
+                : cur + "\n[" + ts + "] " + notes);
+        }
+        if (patientDetails != null) c.setPatientDetails(patientDetails);
+    }
+
+    // ── No-Go Zones ───────────────────────────────────────────────────────────
+    public NoGoZone addNoGoZone(NoGoZone z) {
+        z.setId("zone-" + zoneSeq.getAndIncrement());
+        noGoZones.put(z.getId(), z);
+        return z;
+    }
+    public Collection<NoGoZone> allNoGoZones()   { return Collections.unmodifiableCollection(noGoZones.values()); }
+    public void deleteNoGoZone(String id)         { noGoZones.remove(id); }
 
     public void completeCase(String caseId) {
         CaseRecord c = cases.get(caseId);
