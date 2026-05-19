@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: fast-api
+    runtime: docker
+    dockerfilePath: FAST-Routing-Server/Dockerfile
+    dockerContext: FAST-Routing-Server
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: FIREBASE_CREDENTIALS
+        sync: false
