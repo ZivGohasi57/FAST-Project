@@ -80,7 +80,7 @@ public class DataStore {
     public CaseRecord getActiveForAmbulance(String ambulanceId) {
         return cases.values().stream()
                 .filter(c -> ambulanceId.equals(c.getAssignedAmbulanceId())
-                          && "active".equals(c.getStatus()))
+                          && ("active".equals(c.getStatus()) || "cancel_requested".equals(c.getStatus())))
                 .findFirst().orElse(null);
     }
 
@@ -110,6 +110,21 @@ public class DataStore {
         CaseRecord c = cases.get(caseId);
         if (c == null) return;
         c.setStatus("completed");
+        if (c.getAssignedAmbulanceId() != null) {
+            AmbulanceInfo a = ambulances.get(c.getAssignedAmbulanceId());
+            if (a != null) a.setStatus("available");
+        }
+    }
+
+    public void requestCancel(String caseId) {
+        CaseRecord c = cases.get(caseId);
+        if (c != null && "active".equals(c.getStatus())) c.setStatus("cancel_requested");
+    }
+
+    public void cancelCase(String caseId) {
+        CaseRecord c = cases.get(caseId);
+        if (c == null) return;
+        c.setStatus("cancelled");
         if (c.getAssignedAmbulanceId() != null) {
             AmbulanceInfo a = ambulances.get(c.getAssignedAmbulanceId());
             if (a != null) a.setStatus("available");

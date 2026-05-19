@@ -125,8 +125,8 @@ export default function ManagerSuite() {
   const Sidebar = () => (
     <div style={{
       ...(isMobile
-        ? { width: '100%', background: '#1a1a2e', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', padding: '6px 0', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.1)' }
-        : { width: 60, background: '#1a1a2e', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 20, gap: 6, flexShrink: 0 })
+        ? { width: '100%', background: '#1a1a2e', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 6, paddingBottom: 'max(6px, env(safe-area-inset-bottom, 0px))', flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.1)' }
+        : { width: 60, background: '#1a1a2e', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 20px)', gap: 6, flexShrink: 0 })
     }}>
       {!isMobile && <div style={{ color: 'white', fontSize: 20, marginBottom: 12 }}>⚙️</div>}
       {TABS.map(t => (
@@ -146,7 +146,7 @@ export default function ManagerSuite() {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', direction: 'rtl' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100dvh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', direction: 'rtl' }}>
 
       {/* Sidebar: left on desktop, top on mobile (we put it at bottom for mobile) */}
       {!isMobile && <Sidebar />}
@@ -155,7 +155,7 @@ export default function ManagerSuite() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f8f9fb', minHeight: 0 }}>
 
         {/* Header */}
-        <div style={{ background: 'white', borderBottom: '1px solid #e8eaed', padding: isMobile ? '11px 16px' : '13px 22px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ background: 'white', borderBottom: '1px solid #e8eaed', paddingTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 11px)' : 'calc(env(safe-area-inset-top, 0px) + 13px)', paddingBottom: isMobile ? 11 : 13, paddingLeft: isMobile ? 16 : 22, paddingRight: isMobile ? 16 : 22, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ fontSize: 18 }}>{TABS.find(t => t.id === tab)?.icon}</span>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{TABS.find(t => t.id === tab)?.label}</div>
         </div>

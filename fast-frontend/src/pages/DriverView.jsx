@@ -225,7 +225,7 @@ function InstructionBanner({ instructions, isEmergency }) {
 
   return (
     <div style={{
-      position: 'absolute', top: 16, left: 16, right: 16,
+      position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 16px)', left: 16, right: 16,
       zIndex: 600,
       background: bg,
       border,
@@ -285,7 +285,8 @@ export default function DriverView() {
 
   const endInputRef    = useRef(null);
   const prevCaseIdRef  = useRef(null);
-  const [newCaseAlert, setNewCaseAlert] = useState(false);
+  const [newCaseAlert,  setNewCaseAlert]  = useState(false);
+  const [cancelConfirm, setCancelConfirm] = useState(false);
 
   // Fetch traffic signals once at startup
   useEffect(() => {
@@ -323,7 +324,21 @@ export default function DriverView() {
     if (!ambId) return;
     const poll = () =>
       axios.get(`${API_BASE}/api/cases/active`, { params: { ambulanceId: ambId } })
-        .then(r => setActiveCase(r.data))
+        .then(r => {
+          const c = r.data;
+          if (c && c.status === 'cancelled') {
+            setActiveCase(null);
+            prevCaseIdRef.current = null;
+            setRouteCoords([]);
+            setRouteInfo(null);
+            setInstructions([]);
+            setEndPos(null);
+            setEndText('');
+            setSearchOpen(true);
+          } else {
+            setActiveCase(c);
+          }
+        })
         .catch(() => {});
     poll();
     const iv = setInterval(poll, 5000);
@@ -401,10 +416,18 @@ export default function DriverView() {
     if (startPos && endPos) fetchRoute(next, startPos, endPos);
   };
 
+  const handleCancelRequest = async () => {
+    if (!activeCase) return;
+    try {
+      await axios.post(`${API_BASE}/api/cases/cancel-request`, { caseId: activeCase.id });
+      setCancelConfirm(false);
+    } catch {}
+  };
+
   const canNavigate = startPos && endPos && !loading;
 
   return (
-    <div style={{ position: 'relative', height: '100vh', width: '100vw', overflow: 'hidden',
+    <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
       {/* ── Full-screen map ── */}
@@ -427,7 +450,9 @@ export default function DriverView() {
       {activeCase?.notes && (() => { const last = activeCase.notes.split('\n').filter(Boolean).pop(); return last ? (
         <div style={{
           position: 'absolute',
-          top: instructions.length > 0 ? 102 : 16,
+          top: instructions.length > 0
+            ? 'calc(env(safe-area-inset-top, 0px) + 102px)'
+            : 'calc(env(safe-area-inset-top, 0px) + 16px)',
           left: 16, right: 16,
           background: 'rgba(255, 149, 0, 0.94)',
           backdropFilter: 'blur(6px)',
@@ -545,6 +570,63 @@ export default function DriverView() {
         </div>
       )}
 
+      {/* ── Cancel confirmation overlay ── */}
+      {cancelConfirm && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(3px)',
+          zIndex: 710,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: 22,
+            padding: '28px 26px 22px',
+            maxWidth: 320, width: '100%',
+            boxShadow: '0 12px 48px rgba(0,0,0,0.35)',
+            direction: 'rtl',
+            animation: 'slideUp 0.3s ease',
+          }}>
+            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>⚠️</div>
+            <div style={{
+              textAlign: 'center', fontSize: 19, fontWeight: 800,
+              color: '#1a1a2e', marginBottom: 8,
+            }}>
+              ביטול נסיעה
+            </div>
+            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>
+              שליחת בקשת ביטול למוקדן. האם להמשיך?
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => setCancelConfirm(false)}
+                style={{
+                  flex: 1, padding: '13px',
+                  background: '#f5f7fa', border: '1px solid #e8eaed',
+                  borderRadius: 14, cursor: 'pointer',
+                  fontWeight: 600, fontSize: 14, color: '#555',
+                }}
+              >
+                לא
+              </button>
+              <button
+                onClick={handleCancelRequest}
+                style={{
+                  flex: 1, padding: '13px',
+                  background: 'linear-gradient(135deg,#ff3b30,#ff6b35)',
+                  border: 'none', borderRadius: 14, cursor: 'pointer',
+                  fontWeight: 700, fontSize: 14, color: 'white',
+                }}
+              >
+                כן, בטל
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Bottom sheet ── */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -631,7 +713,7 @@ export default function DriverView() {
         </div>
 
         {/* ── BOTTOM BAR ── */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
           <button
             onClick={() => setSearchOpen(o => !o)}
             style={{
@@ -666,6 +748,39 @@ export default function DriverView() {
           >
             {isEmergency ? '🚨 חירום' : '✓ שגרה'}
           </button>
+
+          {/* Cancel trip — shown when an active case is assigned */}
+          {activeCase && activeCase.status === 'active' && (
+            <button
+              onClick={() => setCancelConfirm(true)}
+              style={{
+                padding: '12px 14px',
+                background: '#fff0ef',
+                border: '1.5px solid #ff3b30',
+                borderRadius: 12, cursor: 'pointer',
+                fontWeight: 700, fontSize: 12,
+                color: '#ff3b30',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              ביטול נסיעה
+            </button>
+          )}
+
+          {/* Cancel pending indicator */}
+          {activeCase && activeCase.status === 'cancel_requested' && (
+            <div style={{
+              padding: '10px 12px',
+              background: '#fff8e1',
+              border: '1.5px solid #ff9500',
+              borderRadius: 12,
+              fontWeight: 600, fontSize: 11,
+              color: '#ff9500',
+              whiteSpace: 'nowrap',
+            }}>
+              ⏳ בקשת ביטול נשלחה
+            </div>
+          )}
         </div>
       </div>
 

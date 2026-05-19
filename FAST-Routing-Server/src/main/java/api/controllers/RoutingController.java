@@ -251,6 +251,16 @@ public class RoutingController {
                 );
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/cancel-request".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.requestCancel(json.get("caseId").getAsString());
+                sendStatus(ex, 200);
+
+            } else if ("POST".equals(method) && "/cancel".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.cancelCase(json.get("caseId").getAsString());
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }

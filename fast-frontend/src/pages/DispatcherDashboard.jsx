@@ -63,11 +63,23 @@ export default function DispatcherDashboard() {
   const [loadingEta,    setLoadingEta]    = useState(false);
   const [loadingAssign, setLoadingAssign] = useState(false);
   const [error,         setError]         = useState('');
+  const [tab,           setTab]           = useState('new');
+  const [missions,      setMissions]      = useState([]);
   const searchTimer = useRef(null);
 
   useEffect(() => {
     const fetch = () =>
       axios.get(`${API_BASE}/api/ambulances`).then(r => setAmbulances(r.data)).catch(() => {});
+    fetch();
+    const iv = setInterval(fetch, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const fetch = () =>
+      axios.get(`${API_BASE}/api/cases`)
+        .then(r => setMissions(r.data.filter(c => c.status === 'active' || c.status === 'cancel_requested')))
+        .catch(() => {});
     fetch();
     const iv = setInterval(fetch, 5000);
     return () => clearInterval(iv);
@@ -143,6 +155,19 @@ export default function DispatcherDashboard() {
     } catch { setError('שגיאה בסיום קריאה'); }
   };
 
+  const handleCancelCase = async (caseId) => {
+    try {
+      await axios.post(`${API_BASE}/api/cases/cancel`, { caseId });
+      setMissions(prev => prev.filter(m => m.id !== caseId));
+      if (activeCase?.id === caseId) {
+        setActiveCase(null); setAssignedRoute([]); setEtaResults([]);
+        setEventPos(null); setAddress('');
+        setForm({ patientDetails: '', description: '', urgency: 'emergency', notes: '' });
+        if (isMobile) setShowMap(false);
+      }
+    } catch { setError('שגיאה בביטול קריאה'); }
+  };
+
   const mapPoints = [
     ...ambulances.map(a => [a.lat, a.lon]),
     ...(eventPos ? [[eventPos.lat, eventPos.lon]] : []),
@@ -155,23 +180,23 @@ export default function DispatcherDashboard() {
     background: '#f8f9fb',
     borderLeft: isMobile ? 'none' : '1px solid #e8eaed',
     overflowY: 'auto',
-    height: '100vh',
+    height: '100dvh',
   };
 
   const mapStyle = {
     flex: isMobile ? 'unset' : 1,
     width: isMobile ? '100%' : undefined,
-    height: isMobile ? '100vh' : undefined,
+    height: isMobile ? '100dvh' : undefined,
     display: isMobile && !showMap ? 'none' : 'block',
     position: 'relative',
   };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', direction: 'rtl' }}>
+    <div style={{ display: 'flex', height: '100dvh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', direction: 'rtl' }}>
 
       {/* ── PANEL ── */}
       <div style={panelStyle}>
-        <div style={{ background: '#1a1a2e', color: 'white', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <div style={{ background: '#1a1a2e', color: 'white', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)', paddingBottom: 14, paddingLeft: 18, paddingRight: 18, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ fontSize: 22 }}>🚑</span>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>מוקד פיקוד</div>
@@ -196,7 +221,39 @@ export default function DispatcherDashboard() {
           </div>
         )}
 
-        {!activeCase && (
+        {/* Tab bar */}
+        <div style={{ display: 'flex', borderBottom: '1px solid #e8eaed', flexShrink: 0 }}>
+          {[
+            { id: 'new',      label: 'קריאה חדשה',    icon: '➕' },
+            { id: 'missions', label: 'משימות פעילות', icon: '🚑',
+              badge: missions.filter(m => m.status === 'cancel_requested').length },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              flex: 1, padding: '11px 8px',
+              background: 'none', border: 'none', cursor: 'pointer',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: tab === t.id ? 700 : 500,
+              color: tab === t.id ? '#1a1a2e' : '#888',
+              borderBottom: tab === t.id ? '2px solid #1a1a2e' : '2px solid transparent',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              position: 'relative',
+            }}>
+              <span>{t.icon}</span>
+              <span>{t.label}</span>
+              {t.badge > 0 && (
+                <span style={{
+                  background: '#ff3b30', color: 'white',
+                  borderRadius: 10, padding: '0 6px',
+                  fontSize: 11, fontWeight: 700, lineHeight: '18px', minWidth: 18,
+                  display: 'inline-block', textAlign: 'center',
+                }}>
+                  {t.badge}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'new' && !activeCase && (
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={s.sectionTitle}>קריאה חדשה</div>
 
@@ -263,7 +320,7 @@ export default function DispatcherDashboard() {
           </div>
         )}
 
-        {etaResults.length > 0 && !activeCase && (
+        {tab === 'new' && etaResults.length > 0 && !activeCase && (
           <div style={{ padding: '0 16px 16px' }}>
             <div style={s.sectionTitle}>בחר אמבולנס</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -294,7 +351,7 @@ export default function DispatcherDashboard() {
           </div>
         )}
 
-        {activeCase && (
+        {tab === 'new' && activeCase && (
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ background: '#fff8e1', border: '1px solid #ffcc02', borderRadius: 12, padding: '14px 16px' }}>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#7a5900', marginBottom: 8 }}>🚨 קריאה פעילה — {activeCase.id}</div>
@@ -323,13 +380,76 @@ export default function DispatcherDashboard() {
             </button>
           </div>
         )}
+        {tab === 'missions' && (
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={s.sectionTitle}>משימות פעילות — {missions.length}</div>
+            {missions.length === 0 ? (
+              <div style={{ textAlign: 'center', color: '#aaa', fontSize: 14, padding: '40px 0' }}>
+                אין משימות פעילות כרגע
+              </div>
+            ) : missions.map(m => (
+              <div key={m.id} style={{
+                background: m.status === 'cancel_requested' ? '#fffbf0' : 'white',
+                border: `1.5px solid ${m.status === 'cancel_requested' ? '#ff9500' : '#e8eaed'}`,
+                borderRadius: 14, padding: '13px 14px',
+                animation: m.status === 'cancel_requested' ? 'cancelPulse 1.8s ease-in-out infinite' : 'none',
+              }}>
+                {/* Header row */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 700, fontSize: 12, color: '#999' }}>{m.id}</span>
+                  {m.status === 'cancel_requested' && (
+                    <span style={{
+                      background: '#fff0d6', color: '#ff9500',
+                      border: '1px solid #ff9500',
+                      borderRadius: 10, padding: '2px 8px', fontSize: 11, fontWeight: 700,
+                    }}>
+                      ⚠️ בקשת ביטול מהנהג
+                    </span>
+                  )}
+                  <span style={{
+                    marginRight: 'auto', fontSize: 11, fontWeight: 700,
+                    color: m.urgency === 'emergency' ? '#ff3b30' : '#34c759',
+                  }}>
+                    {m.urgency === 'emergency' ? '🚨 חירום' : '🚗 שגרה'}
+                  </span>
+                </div>
+                {/* Details */}
+                <div style={{ fontSize: 13, color: '#444', lineHeight: 1.9, marginBottom: 10 }}>
+                  <div>📍 {m.address}</div>
+                  <div>🚑 {m.assignedDriverName}</div>
+                  {m.patientDetails && <div>👤 {m.patientDetails}</div>}
+                </div>
+                {/* Cancel button */}
+                <button
+                  onClick={() => handleCancelCase(m.id)}
+                  style={{
+                    width: '100%', padding: '9px 0',
+                    background: '#fff0ef', border: '1.5px solid #ff3b30',
+                    borderRadius: 10, cursor: 'pointer',
+                    fontWeight: 700, fontSize: 13, color: '#ff3b30',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  ✕ בטל קריאה
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      <style>{`
+        @keyframes cancelPulse {
+          0%,100% { box-shadow: 0 0 0 0 rgba(255,149,0,0); }
+          50%      { box-shadow: 0 0 0 4px rgba(255,149,0,0.3); }
+        }
+      `}</style>
 
       {/* ── MAP ── */}
       <div style={mapStyle}>
         {isMobile && (
           <button onClick={() => setShowMap(false)} style={{
-            position: 'absolute', top: 14, right: 14, zIndex: 999,
+            position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', right: 14, zIndex: 999,
             background: 'white', border: 'none', borderRadius: 20,
             padding: '8px 16px', fontWeight: 700, fontSize: 14,
             boxShadow: '0 2px 10px rgba(0,0,0,0.2)', cursor: 'pointer',
