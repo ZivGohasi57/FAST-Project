@@ -1,14 +1,12 @@
 package api;
 
 import com.google.gson.*;
+import com.google.gson.reflect.TypeToken;
 import core.models.*;
 
-import java.net.URI;
-import java.net.URLEncoder;
-import java.net.http.*;
-import java.nio.charset.StandardCharsets;
-import java.security.*;
-import java.security.spec.PKCS8EncodedKeySpec;
+import java.io.*;
+import java.lang.reflect.Type;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -19,233 +17,55 @@ public class DataStore {
     private static final DataStore INSTANCE = new DataStore();
     public static DataStore getInstance() { return INSTANCE; }
 
-    private final String project;
-    private final String clientEmail;
-    private final PrivateKey privateKey;
-    private final HttpClient http = HttpClient.newHttpClient();
-    private final Gson gson = new Gson();
+    private final Gson gson = new GsonBuilder().setPrettyPrinting().serializeNulls().create();
+    private final Path dataDir;
 
-    private volatile String accessToken;
-    private volatile long tokenExpiresAt = 0;
-
+    private final Map<String, Map<String, Map<String, Object>>> store = new ConcurrentHashMap<>();
     private final Map<String, String> sessions = new ConcurrentHashMap<>();
     private final AtomicLong caseSeq = new AtomicLong(1);
     private final AtomicLong userSeq = new AtomicLong(10);
     private final AtomicLong zoneSeq = new AtomicLong(1);
 
-    private static final String FS_BASE = "https://firestore.googleapis.com/v1/projects/%s/databases/(default)/documents";
+    private static final String USERS      = "users";
+    private static final String CASES      = "cases";
+    private static final String AMBULANCES = "ambulances";
+    private static final String NOGOZONES  = "nogozones";
 
     private DataStore() {
+        dataDir = Paths.get("data");
         try {
-            String credJson = System.getenv("FIREBASE_CREDENTIALS");
-            if (credJson == null || credJson.isBlank())
-                throw new RuntimeException("FIREBASE_CREDENTIALS env var not set");
-
-            JsonObject creds = JsonParser.parseString(credJson).getAsJsonObject();
-            project = creds.get("project_id").getAsString();
-            clientEmail = creds.get("client_email").getAsString();
-
-            String pem = creds.get("private_key").getAsString()
-                .replace("-----BEGIN PRIVATE KEY-----", "")
-                .replace("-----END PRIVATE KEY-----", "")
-                .replaceAll("\\s+", "");
-            byte[] keyBytes = Base64.getDecoder().decode(pem);
-            privateKey = KeyFactory.getInstance("RSA").generatePrivate(new PKCS8EncodedKeySpec(keyBytes));
-
-            refreshToken();
-            initCounters();
+            Files.createDirectories(dataDir);
+            for (String col : new String[]{USERS, CASES, AMBULANCES, NOGOZONES})
+                store.put(col, new ConcurrentHashMap<>(loadCollection(col)));
+            loadCounters();
             seedIfEmpty();
         } catch (Exception e) {
             throw new RuntimeException("DataStore init failed: " + e.getMessage(), e);
         }
     }
 
-    // ── OAuth2 ────────────────────────────────────────────────────────────────
+    // ── Persistence helpers ────────────────────────────────────────────────────
 
-    private synchronized void refreshToken() throws Exception {
-        long now = System.currentTimeMillis() / 1000;
-        String header  = base64url(gson.toJson(Map.of("alg", "RS256", "typ", "JWT")));
-        String payload = base64url(gson.toJson(Map.of(
-            "iss",   clientEmail,
-            "scope", "https://www.googleapis.com/auth/datastore",
-            "aud",   "https://oauth2.googleapis.com/token",
-            "iat",   now,
-            "exp",   now + 3600
-        )));
-        String sigInput = header + "." + payload;
-        Signature sig = Signature.getInstance("SHA256withRSA");
-        sig.initSign(privateKey);
-        sig.update(sigInput.getBytes(StandardCharsets.UTF_8));
-        String jwt = sigInput + "." + base64url(sig.sign());
-
-        String body = "grant_type=" + URLEncoder.encode("urn:ietf:params:oauth:grant-type:jwt-bearer", StandardCharsets.UTF_8)
-            + "&assertion=" + URLEncoder.encode(jwt, StandardCharsets.UTF_8);
-
-        HttpResponse<String> resp = http.send(
-            HttpRequest.newBuilder(URI.create("https://oauth2.googleapis.com/token"))
-                .POST(HttpRequest.BodyPublishers.ofString(body))
-                .header("Content-Type", "application/x-www-form-urlencoded").build(),
-            HttpResponse.BodyHandlers.ofString());
-
-        JsonObject r = JsonParser.parseString(resp.body()).getAsJsonObject();
-        if (!r.has("access_token"))
-            throw new RuntimeException("Token error: " + resp.body());
-        accessToken = r.get("access_token").getAsString();
-        tokenExpiresAt = System.currentTimeMillis() + (r.get("expires_in").getAsLong() - 60) * 1000;
+    private Map<String, Map<String, Object>> loadCollection(String name) throws IOException {
+        Path file = dataDir.resolve(name + ".json");
+        if (!Files.exists(file)) return new HashMap<>();
+        Type type = new TypeToken<Map<String, Map<String, Object>>>(){}.getType();
+        Map<String, Map<String, Object>> result = gson.fromJson(Files.readString(file), type);
+        return result != null ? result : new HashMap<>();
     }
 
-    private String token() {
-        if (System.currentTimeMillis() >= tokenExpiresAt) {
-            try { refreshToken(); } catch (Exception e) { throw new RuntimeException(e); }
-        }
-        return accessToken;
+    private synchronized void saveCollection(String name) {
+        try {
+            Files.writeString(dataDir.resolve(name + ".json"), gson.toJson(store.get(name)));
+        } catch (IOException e) { /* non-fatal */ }
     }
 
-    private static String base64url(String s)  { return base64url(s.getBytes(StandardCharsets.UTF_8)); }
-    private static String base64url(byte[] b)  { return Base64.getUrlEncoder().withoutPadding().encodeToString(b); }
-
-    // ── Firestore HTTP helpers ────────────────────────────────────────────────
-
-    private String fsUrl(String path) {
-        return String.format(FS_BASE, project) + "/" + path;
-    }
-
-    private JsonObject fsGet(String path) throws Exception {
-        HttpResponse<String> r = http.send(
-            HttpRequest.newBuilder(URI.create(fsUrl(path)))
-                .GET().header("Authorization", "Bearer " + token()).build(),
-            HttpResponse.BodyHandlers.ofString());
-        if (r.statusCode() == 404) return null;
-        JsonObject obj = JsonParser.parseString(r.body()).getAsJsonObject();
-        return obj.has("error") ? null : obj;
-    }
-
-    private void fsPatch(String path, JsonObject fields) throws Exception {
-        String body = "{\"fields\":" + gson.toJson(fields) + "}";
-        http.send(
-            HttpRequest.newBuilder(URI.create(fsUrl(path)))
-                .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
-                .header("Authorization", "Bearer " + token())
-                .header("Content-Type", "application/json").build(),
-            HttpResponse.BodyHandlers.ofString());
-    }
-
-    private void fsPatchFields(String path, Map<String, Object> updates) throws Exception {
-        StringBuilder url = new StringBuilder(fsUrl(path));
-        boolean first = true;
-        for (String field : updates.keySet()) {
-            url.append(first ? "?" : "&")
-               .append("updateMask.fieldPaths=")
-               .append(URLEncoder.encode(field, StandardCharsets.UTF_8));
-            first = false;
-        }
-        String body = "{\"fields\":" + gson.toJson(toFields(updates)) + "}";
-        http.send(
-            HttpRequest.newBuilder(URI.create(url.toString()))
-                .method("PATCH", HttpRequest.BodyPublishers.ofString(body))
-                .header("Authorization", "Bearer " + token())
-                .header("Content-Type", "application/json").build(),
-            HttpResponse.BodyHandlers.ofString());
-    }
-
-    private void fsDelete(String path) throws Exception {
-        http.send(
-            HttpRequest.newBuilder(URI.create(fsUrl(path)))
-                .DELETE().header("Authorization", "Bearer " + token()).build(),
-            HttpResponse.BodyHandlers.ofString());
-    }
-
-    private List<JsonObject> fsList(String collection) throws Exception {
-        HttpResponse<String> r = http.send(
-            HttpRequest.newBuilder(URI.create(fsUrl(collection)))
-                .GET().header("Authorization", "Bearer " + token()).build(),
-            HttpResponse.BodyHandlers.ofString());
-        JsonObject root = JsonParser.parseString(r.body()).getAsJsonObject();
-        if (!root.has("documents")) return Collections.emptyList();
-        List<JsonObject> docs = new ArrayList<>();
-        for (JsonElement el : root.getAsJsonArray("documents")) docs.add(el.getAsJsonObject());
-        return docs;
-    }
-
-    private List<JsonObject> fsQuery(String collection, String field, Object value) throws Exception {
-        JsonObject fieldRef = new JsonObject();
-        fieldRef.addProperty("fieldPath", field);
-        JsonObject fieldFilter = new JsonObject();
-        fieldFilter.add("field", fieldRef);
-        fieldFilter.addProperty("op", "EQUAL");
-        fieldFilter.add("value", toFirestoreValue(value));
-        JsonObject where = new JsonObject();
-        where.add("fieldFilter", fieldFilter);
-
-        JsonObject from = new JsonObject();
-        from.addProperty("collectionId", collection);
-        JsonArray fromArr = new JsonArray();
-        fromArr.add(from);
-
-        JsonObject structuredQuery = new JsonObject();
-        structuredQuery.add("from", fromArr);
-        structuredQuery.add("where", where);
-        JsonObject query = new JsonObject();
-        query.add("structuredQuery", structuredQuery);
-
-        String url = "https://firestore.googleapis.com/v1/projects/" + project
-            + "/databases/(default)/documents:runQuery";
-        HttpResponse<String> r = http.send(
-            HttpRequest.newBuilder(URI.create(url))
-                .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(query)))
-                .header("Authorization", "Bearer " + token())
-                .header("Content-Type", "application/json").build(),
-            HttpResponse.BodyHandlers.ofString());
-
-        List<JsonObject> docs = new ArrayList<>();
-        for (JsonElement el : JsonParser.parseString(r.body()).getAsJsonArray()) {
-            JsonObject obj = el.getAsJsonObject();
-            if (obj.has("document")) docs.add(obj.getAsJsonObject("document"));
-        }
-        return docs;
-    }
-
-    // ── Firestore value format ────────────────────────────────────────────────
-
-    private JsonObject toFirestoreValue(Object v) {
-        JsonObject o = new JsonObject();
-        if (v == null)                               o.addProperty("nullValue", "NULL_VALUE");
-        else if (v instanceof String)                o.addProperty("stringValue", (String) v);
-        else if (v instanceof Double || v instanceof Float)
-                                                     o.addProperty("doubleValue", ((Number) v).doubleValue());
-        else if (v instanceof Number)                o.addProperty("integerValue", String.valueOf(((Number) v).longValue()));
-        else if (v instanceof Boolean)               o.addProperty("booleanValue", (Boolean) v);
-        else                                         o.addProperty("stringValue", v.toString());
-        return o;
-    }
-
-    private JsonObject toFields(Map<String, Object> m) {
-        JsonObject fields = new JsonObject();
-        for (Map.Entry<String, Object> e : m.entrySet())
-            fields.add(e.getKey(), toFirestoreValue(e.getValue()));
-        return fields;
-    }
-
-    private Map<String, Object> fromFields(JsonObject doc) {
-        if (!doc.has("fields")) return Collections.emptyMap();
-        Map<String, Object> m = new HashMap<>();
-        for (Map.Entry<String, JsonElement> e : doc.getAsJsonObject("fields").entrySet()) {
-            JsonObject val = e.getValue().getAsJsonObject();
-            if      (val.has("stringValue"))  m.put(e.getKey(), val.get("stringValue").getAsString());
-            else if (val.has("integerValue")) m.put(e.getKey(), Long.parseLong(val.get("integerValue").getAsString()));
-            else if (val.has("doubleValue"))  m.put(e.getKey(), val.get("doubleValue").getAsDouble());
-            else if (val.has("booleanValue")) m.put(e.getKey(), val.get("booleanValue").getAsBoolean());
-            else if (val.has("nullValue"))    m.put(e.getKey(), null);
-        }
-        return m;
-    }
-
-    // ── Counters ──────────────────────────────────────────────────────────────
-
-    private void initCounters() throws Exception {
-        JsonObject doc = fsGet("meta/counters");
-        if (doc == null) return;
-        Map<String, Object> m = fromFields(doc);
+    private void loadCounters() throws IOException {
+        Path file = dataDir.resolve("counters.json");
+        if (!Files.exists(file)) return;
+        Type type = new TypeToken<Map<String, Object>>(){}.getType();
+        Map<String, Object> m = gson.fromJson(Files.readString(file), type);
+        if (m == null) return;
         if (m.containsKey("caseSeq")) caseSeq.set(((Number) m.get("caseSeq")).longValue());
         if (m.containsKey("userSeq")) userSeq.set(((Number) m.get("userSeq")).longValue());
         if (m.containsKey("zoneSeq")) zoneSeq.set(((Number) m.get("zoneSeq")).longValue());
@@ -253,18 +73,50 @@ public class DataStore {
 
     private void saveCounters() {
         try {
-            fsPatch("meta/counters", toFields(Map.of(
-                "caseSeq", caseSeq.get(),
-                "userSeq", userSeq.get(),
-                "zoneSeq", zoneSeq.get()
-            )));
-        } catch (Exception e) { /* non-fatal */ }
+            Map<String, Object> m = new HashMap<>();
+            m.put("caseSeq", caseSeq.get());
+            m.put("userSeq", userSeq.get());
+            m.put("zoneSeq", zoneSeq.get());
+            Files.writeString(dataDir.resolve("counters.json"), gson.toJson(m));
+        } catch (IOException e) { /* non-fatal */ }
+    }
+
+    private Map<String, Object> getDoc(String collection, String id) {
+        return store.get(collection).get(id);
+    }
+
+    private void putDoc(String collection, String id, Map<String, Object> doc) {
+        store.get(collection).put(id, doc);
+        saveCollection(collection);
+    }
+
+    private void patchDoc(String collection, String id, Map<String, Object> updates) {
+        Map<String, Object> existing = store.get(collection).getOrDefault(id, new HashMap<>());
+        Map<String, Object> merged = new HashMap<>(existing);
+        merged.putAll(updates);
+        store.get(collection).put(id, merged);
+        saveCollection(collection);
+    }
+
+    private void deleteDoc(String collection, String id) {
+        store.get(collection).remove(id);
+        saveCollection(collection);
+    }
+
+    private Collection<Map<String, Object>> listCollection(String collection) {
+        return store.get(collection).values();
+    }
+
+    private List<Map<String, Object>> queryCollection(String collection, String field, Object value) {
+        return store.get(collection).values().stream()
+            .filter(doc -> Objects.equals(doc.get(field), value))
+            .collect(Collectors.toList());
     }
 
     // ── Seed ──────────────────────────────────────────────────────────────────
 
-    private void seedIfEmpty() throws Exception {
-        if (!fsList("users").isEmpty()) return;
+    private void seedIfEmpty() {
+        if (!store.get(USERS).isEmpty()) return;
 
         putUser(new User("u1", "driver1",     "123", "driver",     "amb-1", "יוסי כהן"));
         putUser(new User("u2", "driver2",     "123", "driver",     "amb-2", "משה לוי"));
@@ -280,32 +132,25 @@ public class DataStore {
     // ── Users ─────────────────────────────────────────────────────────────────
 
     public void putUser(User u) {
-        try { fsPatch("users/" + u.getId(), toFields(userToMap(u))); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        putDoc(USERS, u.getId(), userToMap(u));
     }
 
     public User getById(String id) {
-        try {
-            JsonObject doc = fsGet("users/" + id);
-            return doc != null ? toUser(fromFields(doc)) : null;
-        } catch (Exception e) { return null; }
+        Map<String, Object> doc = getDoc(USERS, id);
+        return doc != null ? toUser(doc) : null;
     }
 
     public User getByUsername(String uname) {
-        try {
-            List<JsonObject> docs = fsQuery("users", "username", uname);
-            return docs.isEmpty() ? null : toUser(fromFields(docs.get(0)));
-        } catch (Exception e) { return null; }
+        List<Map<String, Object>> docs = queryCollection(USERS, "username", uname);
+        return docs.isEmpty() ? null : toUser(docs.get(0));
     }
 
     public Collection<User> allUsers() {
-        try {
-            return fsList("users").stream().map(d -> toUser(fromFields(d))).collect(Collectors.toList());
-        } catch (Exception e) { return Collections.emptyList(); }
+        return listCollection(USERS).stream().map(this::toUser).collect(Collectors.toList());
     }
 
     public void deleteUser(String id) {
-        try { fsDelete("users/" + id); } catch (Exception e) { /* ignore */ }
+        deleteDoc(USERS, id);
     }
 
     public String nextUserId() {
@@ -330,89 +175,71 @@ public class DataStore {
         saveCounters();
         c.setStatus("pending");
         c.setCreatedAt(System.currentTimeMillis());
-        try { fsPatch("cases/" + c.getId(), toFields(caseToMap(c))); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        putDoc(CASES, c.getId(), caseToMap(c));
         return c;
     }
 
     public CaseRecord getCaseById(String id) {
-        try {
-            JsonObject doc = fsGet("cases/" + id);
-            return doc != null ? toCase(fromFields(doc)) : null;
-        } catch (Exception e) { return null; }
+        Map<String, Object> doc = getDoc(CASES, id);
+        return doc != null ? toCase(doc) : null;
     }
 
     public Collection<CaseRecord> allCases() {
-        try {
-            return fsList("cases").stream().map(d -> toCase(fromFields(d))).collect(Collectors.toList());
-        } catch (Exception e) { return Collections.emptyList(); }
+        return listCollection(CASES).stream().map(this::toCase).collect(Collectors.toList());
     }
 
     public void assignCase(String caseId, String ambulanceId) {
-        try {
-            AmbulanceInfo a = getAmbulance(ambulanceId);
-            Map<String, Object> caseUpdates = new HashMap<>();
-            caseUpdates.put("status", "active");
-            caseUpdates.put("assignedAmbulanceId", ambulanceId);
-            caseUpdates.put("assignedDriverName", a != null ? a.getDriverName() : "");
-            fsPatchFields("cases/" + caseId, caseUpdates);
-            if (a != null) fsPatchFields("ambulances/" + ambulanceId, Map.of("status", "busy"));
-        } catch (Exception e) { throw new RuntimeException(e); }
+        AmbulanceInfo a = getAmbulance(ambulanceId);
+        Map<String, Object> caseUpdates = new HashMap<>();
+        caseUpdates.put("status", "active");
+        caseUpdates.put("assignedAmbulanceId", ambulanceId);
+        caseUpdates.put("assignedDriverName", a != null ? a.getDriverName() : "");
+        patchDoc(CASES, caseId, caseUpdates);
+        if (a != null) patchDoc(AMBULANCES, ambulanceId, Map.of("status", "busy"));
     }
 
     public CaseRecord getActiveForAmbulance(String ambulanceId) {
-        try {
-            return fsQuery("cases", "assignedAmbulanceId", ambulanceId).stream()
-                .map(d -> toCase(fromFields(d)))
-                .filter(c -> "active".equals(c.getStatus()) || "cancel_requested".equals(c.getStatus()))
-                .findFirst().orElse(null);
-        } catch (Exception e) { return null; }
+        return queryCollection(CASES, "assignedAmbulanceId", ambulanceId).stream()
+            .map(this::toCase)
+            .filter(c -> "active".equals(c.getStatus()) || "cancel_requested".equals(c.getStatus()))
+            .findFirst().orElse(null);
     }
 
     public void updateCaseNotes(String caseId, String notes, String patientDetails) {
-        try {
-            JsonObject doc = fsGet("cases/" + caseId);
-            if (doc == null) return;
-            Map<String, Object> m = fromFields(doc);
-            Map<String, Object> updates = new HashMap<>();
-            if (notes != null) {
-                String ts  = new java.text.SimpleDateFormat("HH:mm").format(new Date());
-                String cur = (String) m.get("notes");
-                updates.put("notes", (cur == null || cur.isEmpty())
-                    ? "[" + ts + "] " + notes
-                    : cur + "\n[" + ts + "] " + notes);
-            }
-            if (patientDetails != null) updates.put("patientDetails", patientDetails);
-            if (!updates.isEmpty()) fsPatchFields("cases/" + caseId, updates);
-        } catch (Exception e) { throw new RuntimeException(e); }
+        Map<String, Object> doc = getDoc(CASES, caseId);
+        if (doc == null) return;
+        Map<String, Object> updates = new HashMap<>();
+        if (notes != null) {
+            String ts  = new java.text.SimpleDateFormat("HH:mm").format(new Date());
+            String cur = (String) doc.get("notes");
+            updates.put("notes", (cur == null || cur.isEmpty())
+                ? "[" + ts + "] " + notes
+                : cur + "\n[" + ts + "] " + notes);
+        }
+        if (patientDetails != null) updates.put("patientDetails", patientDetails);
+        if (!updates.isEmpty()) patchDoc(CASES, caseId, updates);
     }
 
     public void completeCase(String caseId) {
-        try {
-            CaseRecord c = getCaseById(caseId);
-            if (c == null) return;
-            fsPatchFields("cases/" + caseId, Map.of("status", "completed"));
-            if (c.getAssignedAmbulanceId() != null)
-                fsPatchFields("ambulances/" + c.getAssignedAmbulanceId(), Map.of("status", "available"));
-        } catch (Exception e) { throw new RuntimeException(e); }
+        CaseRecord c = getCaseById(caseId);
+        if (c == null) return;
+        patchDoc(CASES, caseId, Map.of("status", "completed"));
+        if (c.getAssignedAmbulanceId() != null)
+            patchDoc(AMBULANCES, c.getAssignedAmbulanceId(), Map.of("status", "available"));
     }
 
     public void requestCancel(String caseId) {
-        try {
-            CaseRecord c = getCaseById(caseId);
-            if (c != null && "active".equals(c.getStatus()))
-                fsPatchFields("cases/" + caseId, Map.of("status", "cancel_requested"));
-        } catch (Exception e) { throw new RuntimeException(e); }
+        CaseRecord c = getCaseById(caseId);
+        if (c != null && "active".equals(c.getStatus()))
+            patchDoc(CASES, caseId, Map.of("status", "cancel_requested"));
     }
 
     public void cancelCase(String caseId) {
-        try {
-            CaseRecord c = getCaseById(caseId);
-            if (c == null) return;
-            fsPatchFields("cases/" + caseId, Map.of("status", "cancelled"));
-            if (c.getAssignedAmbulanceId() != null)
-                fsPatchFields("ambulances/" + c.getAssignedAmbulanceId(), Map.of("status", "available"));
-        } catch (Exception e) { throw new RuntimeException(e); }
+        CaseRecord c = getCaseById(caseId);
+        if (c == null) return;
+        patchDoc(CASES, caseId, Map.of("status", "cancelled"));
+        if (c.getAssignedAmbulanceId() != null)
+            patchDoc(AMBULANCES, c.getAssignedAmbulanceId(), Map.of("status", "available"));
     }
 
     // ── No-Go Zones ───────────────────────────────────────────────────────────
@@ -420,56 +247,46 @@ public class DataStore {
     public NoGoZone addNoGoZone(NoGoZone z) {
         z.setId("zone-" + zoneSeq.getAndIncrement());
         saveCounters();
-        try { fsPatch("nogozones/" + z.getId(), toFields(zoneToMap(z))); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        putDoc(NOGOZONES, z.getId(), zoneToMap(z));
         return z;
     }
 
     public Collection<NoGoZone> allNoGoZones() {
-        try {
-            return fsList("nogozones").stream().map(d -> toZone(fromFields(d))).collect(Collectors.toList());
-        } catch (Exception e) { return Collections.emptyList(); }
+        return listCollection(NOGOZONES).stream().map(this::toZone).collect(Collectors.toList());
     }
 
     public void deleteNoGoZone(String id) {
-        try { fsDelete("nogozones/" + id); } catch (Exception e) { /* ignore */ }
+        deleteDoc(NOGOZONES, id);
     }
 
     // ── Ambulances ────────────────────────────────────────────────────────────
 
     public Collection<AmbulanceInfo> allAmbulances() {
-        try {
-            return fsList("ambulances").stream().map(d -> toAmbulance(fromFields(d))).collect(Collectors.toList());
-        } catch (Exception e) { return Collections.emptyList(); }
+        return listCollection(AMBULANCES).stream().map(this::toAmbulance).collect(Collectors.toList());
     }
 
     public AmbulanceInfo getAmbulance(String id) {
-        try {
-            JsonObject doc = fsGet("ambulances/" + id);
-            return doc != null ? toAmbulance(fromFields(doc)) : null;
-        } catch (Exception e) { return null; }
+        Map<String, Object> doc = getDoc(AMBULANCES, id);
+        return doc != null ? toAmbulance(doc) : null;
     }
 
     public void putAmbulance(AmbulanceInfo a) {
-        try { fsPatch("ambulances/" + a.getId(), toFields(ambulanceToMap(a))); }
-        catch (Exception e) { throw new RuntimeException(e); }
+        putDoc(AMBULANCES, a.getId(), ambulanceToMap(a));
     }
 
     public void updateLocation(String id, double lat, double lon) {
-        try {
-            Map<String, Object> upd = new HashMap<>();
-            upd.put("lat", lat);
-            upd.put("lon", lon);
-            fsPatchFields("ambulances/" + id, upd);
-        } catch (Exception e) { /* ignore */ }
+        Map<String, Object> upd = new HashMap<>();
+        upd.put("lat", lat);
+        upd.put("lon", lon);
+        patchDoc(AMBULANCES, id, upd);
     }
 
     // ── Model <-> Map converters ──────────────────────────────────────────────
 
     private Map<String, Object> userToMap(User u) {
         Map<String, Object> m = new HashMap<>();
-        m.put("id", u.getId());           m.put("username",    u.getUsername());
-        m.put("password", u.getPassword()); m.put("role",      u.getRole());
+        m.put("id", u.getId());             m.put("username",    u.getUsername());
+        m.put("password", u.getPassword()); m.put("role",        u.getRole());
         m.put("ambulanceId", u.getAmbulanceId()); m.put("displayName", u.getDisplayName());
         return m;
     }
@@ -481,9 +298,9 @@ public class DataStore {
 
     private Map<String, Object> ambulanceToMap(AmbulanceInfo a) {
         Map<String, Object> m = new HashMap<>();
-        m.put("id", a.getId()); m.put("driverId",  a.getDriverId());
+        m.put("id", a.getId());     m.put("driverId",    a.getDriverId());
         m.put("driverName", a.getDriverName()); m.put("lat", a.getLat());
-        m.put("lon", a.getLon()); m.put("status", a.getStatus());
+        m.put("lon", a.getLon());   m.put("status",      a.getStatus());
         return m;
     }
 
@@ -494,11 +311,11 @@ public class DataStore {
 
     private Map<String, Object> caseToMap(CaseRecord c) {
         Map<String, Object> m = new HashMap<>();
-        m.put("id", c.getId());                       m.put("address",     c.getAddress());
-        m.put("lat", c.getLat());                     m.put("lon",         c.getLon());
+        m.put("id", c.getId());                       m.put("address",        c.getAddress());
+        m.put("lat", c.getLat());                     m.put("lon",            c.getLon());
         m.put("description", c.getDescription());     m.put("patientDetails", c.getPatientDetails());
-        m.put("urgency", c.getUrgency());             m.put("notes",       c.getNotes());
-        m.put("status", c.getStatus());               m.put("createdAt",   c.getCreatedAt());
+        m.put("urgency", c.getUrgency());             m.put("notes",          c.getNotes());
+        m.put("status", c.getStatus());               m.put("createdAt",      c.getCreatedAt());
         m.put("assignedAmbulanceId", c.getAssignedAmbulanceId());
         m.put("assignedDriverName",  c.getAssignedDriverName());
         return m;

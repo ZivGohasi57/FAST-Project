@@ -1,0 +1,34 @@
+{
+  "u1": {
+    "password": "123",
+    "role": "driver",
+    "displayName": "יוסי כהן",
+    "id": "u1",
+    "ambulanceId": "amb-1",
+    "username": "driver1"
+  },
+  "u2": {
+    "password": "123",
+    "role": "driver",
+    "displayName": "משה לוי",
+    "id": "u2",
+    "ambulanceId": "amb-2",
+    "username": "driver2"
+  },
+  "u3": {
+    "password": "123",
+    "role": "dispatcher",
+    "displayName": "רחל גולן",
+    "id": "u3",
+    "ambulanceId": null,
+    "username": "dispatcher1"
+  },
+  "u4": {
+    "password": "123",
+    "role": "manager",
+    "displayName": "דוד ישראלי",
+    "id": "u4",
+    "ambulanceId": null,
+    "username": "manager1"
+  }
+}

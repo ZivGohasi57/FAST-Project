@@ -1,0 +1,2 @@
+run commands for windwos 
+mvn compile exec:java "-Dexec.mainClass=api.controllers.RoutingController"

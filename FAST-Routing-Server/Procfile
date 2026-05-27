@@ -1,1 +1,0 @@
-web: java -Xmx400m -jar target/fast-routing-1.0-SNAPSHOT.jar

@@ -1,0 +1,18 @@
+{
+  "amb-2": {
+    "driverId": "u2",
+    "driverName": "משה לוי",
+    "lon": 34.928,
+    "id": "amb-2",
+    "lat": 32.172,
+    "status": "available"
+  },
+  "amb-1": {
+    "driverId": "u1",
+    "driverName": "יוסי כהן",
+    "lon": 34.9201,
+    "id": "amb-1",
+    "lat": 32.1668,
+    "status": "available"
+  }
+}
