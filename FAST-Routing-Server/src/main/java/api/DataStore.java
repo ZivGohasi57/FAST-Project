@@ -29,6 +29,27 @@ public class DataStore {
     private final Gson               gson = new Gson();
     private final Map<String, String> sessions = new ConcurrentHashMap<>();
 
+    // ── In-memory cache ───────────────────────────────────────────────────────
+
+    private static class CacheEntry {
+        final List<Map<String, Object>> data;
+        final long expires;
+        CacheEntry(List<Map<String, Object>> data, long ttlMs) {
+            this.data    = data;
+            this.expires = System.currentTimeMillis() + ttlMs;
+        }
+        boolean isValid() { return System.currentTimeMillis() < expires; }
+    }
+
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
+
+    private static final Map<String, Long> COL_TTL = Map.of(
+        "cases",      2_000L,
+        "ambulances", 2_000L,
+        "users",      60_000L,
+        "nogozones",  60_000L
+    );
+
     private DataStore() {
         String sa = System.getenv("FIREBASE_SERVICE_ACCOUNT");
         if (sa == null || sa.isBlank())
@@ -122,6 +143,7 @@ public class DataStore {
 
     private void putDoc(String col, String id, Map<String, Object> doc) {
         httpPatch(BASE_URL + "/" + col + "/" + id, gson.toJson(toFirestoreDoc(doc)));
+        cache.remove(col);
     }
 
     private Map<String, Object> getDoc(String col, String id) {
@@ -134,18 +156,25 @@ public class DataStore {
 
     private void deleteDoc(String col, String id) {
         httpDelete(BASE_URL + "/" + col + "/" + id);
+        cache.remove(col);
     }
 
     private List<Map<String, Object>> listCol(String col) {
+        CacheEntry entry = cache.get(col);
+        if (entry != null && entry.isValid()) return entry.data;
+
         JsonObject obj = gson.fromJson(httpGet(BASE_URL + "/" + col + "?pageSize=500"), JsonObject.class);
-        if (obj == null || !obj.has("documents")) return new ArrayList<>();
         List<Map<String, Object>> result = new ArrayList<>();
-        for (JsonElement el : obj.getAsJsonArray("documents")) {
-            JsonObject d  = el.getAsJsonObject();
-            Map<String, Object> map = fromFirestoreDoc(d);
-            map.put("id", docId(d));
-            result.add(map);
+        if (obj != null && obj.has("documents")) {
+            for (JsonElement el : obj.getAsJsonArray("documents")) {
+                JsonObject d  = el.getAsJsonObject();
+                Map<String, Object> map = fromFirestoreDoc(d);
+                map.put("id", docId(d));
+                result.add(map);
+            }
         }
+        long ttl = COL_TTL.getOrDefault(col, 5_000L);
+        cache.put(col, new CacheEntry(result, ttl));
         return result;
     }
 
@@ -166,12 +195,17 @@ public class DataStore {
     private void seedIfEmpty() {
         if (!listCol("users").isEmpty()) return;
 
-        putUser(new User("u1", "driver1",     "123", "driver",     "amb-1", "יוסי כהן"));
-        putUser(new User("u2", "driver2",     "123", "driver",     "amb-2", "משה לוי"));
-        putUser(new User("u3", "dispatcher1", "123", "dispatcher", null,    "רחל גולן"));
-        putUser(new User("u4", "manager1",    "123", "manager",    null,    "דוד ישראלי"));
-        putAmbulance(new AmbulanceInfo("amb-1", "u1", "יוסי כהן", 32.1668, 34.9201, "available"));
-        putAmbulance(new AmbulanceInfo("amb-2", "u2", "משה לוי",  32.1720, 34.9280, "available"));
+        putUser(new DriverUser("u1", "driver1",     "123", "amb-1", "יוסי כהן", "101"));
+        putUser(new DriverUser("u2", "driver2",     "123", "amb-2", "משה לוי",  "102"));
+        putUser(new User("u3", "dispatcher1", "123", "dispatcher", null, "רחל גולן"));
+        putUser(new User("u4", "manager1",    "123", "manager",    null, "דוד ישראלי"));
+
+        AmbulanceInfo a1 = new AmbulanceInfo("amb-1", "u1", "יוסי כהן", 32.1668, 34.9201, "available");
+        a1.setAmbulanceNumber("101");
+        AmbulanceInfo a2 = new AmbulanceInfo("amb-2", "u2", "משה לוי",  32.1720, 34.9280, "available");
+        a2.setAmbulanceNumber("102");
+        putAmbulance(a1);
+        putAmbulance(a2);
 
         Map<String, Object> seq = new HashMap<>();
         seq.put("caseSeq", 1L); seq.put("userSeq", 10L); seq.put("zoneSeq", 1L);
@@ -259,6 +293,14 @@ public class DataStore {
         putDoc("cases", caseId, doc);
     }
 
+    public void markArrival(String caseId) {
+        String url = BASE_URL + "/cases/" + caseId + "?updateMask.fieldPaths=arrivalTime";
+        Map<String, Object> m = new HashMap<>();
+        m.put("arrivalTime", System.currentTimeMillis());
+        httpPatch(url, gson.toJson(toFirestoreDoc(m)));
+        cache.remove("cases");
+    }
+
     public void completeCase(String caseId) {
         Map<String, Object> doc = getDoc("cases", caseId);
         if (doc == null) return;
@@ -317,6 +359,7 @@ public class DataStore {
         Map<String, Object> partial = new HashMap<>();
         partial.put("lat", lat); partial.put("lon", lon);
         httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
+        cache.remove("ambulances");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -325,6 +368,7 @@ public class DataStore {
         String url = BASE_URL + "/" + col + "/" + id + "?updateMask.fieldPaths=status";
         Map<String, Object> m = new HashMap<>(); m.put("status", status);
         httpPatch(url, gson.toJson(toFirestoreDoc(m)));
+        cache.remove(col);
     }
 
     // ── Model converters ──────────────────────────────────────────────────────
@@ -334,12 +378,20 @@ public class DataStore {
         m.put("username", u.getUsername()); m.put("password",    u.getPassword());
         m.put("role",     u.getRole());     m.put("ambulanceId", u.getAmbulanceId());
         m.put("displayName", u.getDisplayName());
+        if (u instanceof DriverUser du && du.getAmbulanceNumber() != null)
+            m.put("ambulanceNumber", du.getAmbulanceNumber());
         return m;
     }
 
     private User toUser(Map<String, Object> m) {
+        String role = str(m, "role");
+        if ("driver".equals(role)) {
+            return new DriverUser(str(m,"id"), str(m,"username"), str(m,"password"),
+                    (String) m.get("ambulanceId"), str(m,"displayName"),
+                    str(m,"ambulanceNumber"));
+        }
         return new User(str(m,"id"), str(m,"username"), str(m,"password"),
-                str(m,"role"), (String) m.get("ambulanceId"), str(m,"displayName"));
+                role, (String) m.get("ambulanceId"), str(m,"displayName"));
     }
 
     private Map<String, Object> ambulanceToMap(AmbulanceInfo a) {
@@ -347,12 +399,15 @@ public class DataStore {
         m.put("driverId",   a.getDriverId());   m.put("driverName", a.getDriverName());
         m.put("lat",        a.getLat());         m.put("lon",        a.getLon());
         m.put("status",     a.getStatus());
+        if (a.getAmbulanceNumber() != null) m.put("ambulanceNumber", a.getAmbulanceNumber());
         return m;
     }
 
     private AmbulanceInfo toAmbulance(Map<String, Object> m) {
-        return new AmbulanceInfo(str(m,"id"), str(m,"driverId"), str(m,"driverName"),
+        AmbulanceInfo a = new AmbulanceInfo(str(m,"id"), str(m,"driverId"), str(m,"driverName"),
                 dbl(m,"lat"), dbl(m,"lon"), str(m,"status"));
+        a.setAmbulanceNumber((String) m.get("ambulanceNumber"));
+        return a;
     }
 
     private Map<String, Object> caseToMap(CaseRecord c) {
@@ -361,7 +416,7 @@ public class DataStore {
         m.put("lon",            c.getLon());            m.put("description",     c.getDescription());
         m.put("patientDetails", c.getPatientDetails()); m.put("urgency",         c.getUrgency());
         m.put("notes",          c.getNotes());          m.put("status",          c.getStatus());
-        m.put("createdAt",      c.getCreatedAt());
+        m.put("createdAt",      c.getCreatedAt());      m.put("arrivalTime",     c.getArrivalTime());
         m.put("assignedAmbulanceId", c.getAssignedAmbulanceId());
         m.put("assignedDriverName",  c.getAssignedDriverName());
         return m;
@@ -378,6 +433,8 @@ public class DataStore {
         c.setAssignedDriverName(str(m,"assignedDriverName"));
         Object ts = m.get("createdAt");
         c.setCreatedAt(ts instanceof Number ? ((Number) ts).longValue() : 0L);
+        Object at = m.get("arrivalTime");
+        c.setArrivalTime(at instanceof Number ? ((Number) at).longValue() : 0L);
         return c;
     }
 

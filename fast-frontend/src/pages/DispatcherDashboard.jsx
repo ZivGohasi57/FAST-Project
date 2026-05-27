@@ -65,7 +65,8 @@ export default function DispatcherDashboard() {
   const [error,         setError]         = useState('');
   const [tab,           setTab]           = useState('new');
   const [missions,      setMissions]      = useState([]);
-  const searchTimer = useRef(null);
+  const searchTimer        = useRef(null);
+  const missionsFetchedRef = useRef(false);
 
   useEffect(() => {
     const fetch = () =>
@@ -76,12 +77,22 @@ export default function DispatcherDashboard() {
   }, []);
 
   useEffect(() => {
-    const fetch = () =>
+    const fetchMissions = () =>
       axios.get(`${API_BASE}/api/cases`)
-        .then(r => setMissions(r.data.filter(c => c.status === 'active' || c.status === 'cancel_requested')))
-        .catch(() => {});
-    fetch();
-    const iv = setInterval(fetch, 5000);
+        .then(r => {
+          const active = r.data.filter(c => c.status === 'active' || c.status === 'cancel_requested');
+          setMissions(active);
+          // On first load, restore activeCase from Firestore if session was lost (e.g. page refresh)
+          if (!missionsFetchedRef.current) {
+            missionsFetchedRef.current = true;
+            if (active.length > 0) {
+              setActiveCase(prev => prev ?? active[0]);
+            }
+          }
+        })
+        .catch(() => { missionsFetchedRef.current = true; });
+    fetchMissions();
+    const iv = setInterval(fetchMissions, 5000);
     return () => clearInterval(iv);
   }, []);
 

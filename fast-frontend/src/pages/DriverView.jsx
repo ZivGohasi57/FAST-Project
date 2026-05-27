@@ -277,6 +277,7 @@ export default function DriverView() {
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState(null);
   const [activeCase,     setActiveCase]     = useState(null);
+  const [arrivedAtScene, setArrivedAtScene] = useState(false);
 
   const [startText, setStartText] = useState('');
   const [endText,   setEndText]   = useState('');
@@ -341,7 +342,7 @@ export default function DriverView() {
         })
         .catch(() => {});
     poll();
-    const iv = setInterval(poll, 5000);
+    const iv = setInterval(poll, 3000);
     return () => clearInterval(iv);
   }, []);
 
@@ -350,6 +351,7 @@ export default function DriverView() {
     if (!activeCase) { prevCaseIdRef.current = null; return; }
     if (activeCase.id === prevCaseIdRef.current) return;
     prevCaseIdRef.current = activeCase.id;
+    setArrivedAtScene(false);
     setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
     setEndText(activeCase.address);
     setIsEmergency(activeCase.urgency === 'emergency');
@@ -421,6 +423,14 @@ export default function DriverView() {
     try {
       await axios.post(`${API_BASE}/api/cases/cancel-request`, { caseId: activeCase.id });
       setCancelConfirm(false);
+    } catch {}
+  };
+
+  const handleArrived = async () => {
+    if (!activeCase) return;
+    try {
+      await axios.post(`${API_BASE}/api/cases/arrive`, { caseId: activeCase.id });
+      setArrivedAtScene(true);
     } catch {}
   };
 
@@ -711,6 +721,34 @@ export default function DriverView() {
             )}
           </div>
         </div>
+
+        {/* ── ARRIVE AT SCENE ── */}
+        {activeCase && activeCase.status === 'active' && (
+          <div style={{ padding: '0 16px 10px' }}>
+            {!arrivedAtScene ? (
+              <button
+                onClick={handleArrived}
+                style={{
+                  width: '100%', padding: '12px',
+                  background: 'linear-gradient(135deg,#34c759,#28a745)',
+                  border: 'none', borderRadius: 12, cursor: 'pointer',
+                  fontWeight: 700, fontSize: 14, color: 'white',
+                }}
+              >
+                ✓ הגעתי לאירוע
+              </button>
+            ) : (
+              <div style={{
+                width: '100%', padding: '11px',
+                background: '#e6f9ec', border: '1.5px solid #34c759',
+                borderRadius: 12, textAlign: 'center',
+                fontWeight: 600, fontSize: 13, color: '#34c759',
+              }}>
+                ✓ הגעה לאירוע נרשמה
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── BOTTOM BAR ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>

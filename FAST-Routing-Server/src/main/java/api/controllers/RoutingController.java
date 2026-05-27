@@ -261,6 +261,11 @@ public class RoutingController {
                 DS.cancelCase(json.get("caseId").getAsString());
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/arrive".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.markArrival(json.get("caseId").getAsString());
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }
@@ -322,29 +327,45 @@ public class RoutingController {
                     m.put("role",        u.getRole());
                     m.put("ambulanceId", u.getAmbulanceId());
                     m.put("displayName", u.getDisplayName());
+                    if (u instanceof core.models.DriverUser du)
+                        m.put("ambulanceNumber", du.getAmbulanceNumber());
                     return m;
                 }).collect(Collectors.toList());
                 sendJson(ex, list);
 
             } else if ("POST".equals(method)) {
                 JsonObject json = body(ex);
-                String id = DS.nextUserId();
-                User u = new User(
-                    id,
-                    json.get("username").getAsString(),
-                    json.get("password").getAsString(),
-                    json.get("role").getAsString(),
-                    json.has("ambulanceId") && !json.get("ambulanceId").isJsonNull()
-                        ? json.get("ambulanceId").getAsString() : null,
-                    json.get("displayName").getAsString()
-                );
+                String id   = DS.nextUserId();
+                String role = json.get("role").getAsString();
+                String ambId = json.has("ambulanceId") && !json.get("ambulanceId").isJsonNull()
+                        ? json.get("ambulanceId").getAsString() : null;
+
+                User u;
+                if ("driver".equals(role)) {
+                    String ambulanceNumber = json.has("ambulanceNumber")
+                            ? json.get("ambulanceNumber").getAsString() : "";
+                    u = new core.models.DriverUser(id,
+                            json.get("username").getAsString(),
+                            json.get("password").getAsString(),
+                            ambId,
+                            json.get("displayName").getAsString(),
+                            ambulanceNumber);
+                } else {
+                    u = new User(id,
+                            json.get("username").getAsString(),
+                            json.get("password").getAsString(),
+                            role, ambId,
+                            json.get("displayName").getAsString());
+                }
                 DS.putUser(u);
                 // If driver with ambulanceId — auto-create ambulance entry if not exists
                 if ("driver".equals(u.getRole()) && u.getAmbulanceId() != null
                         && DS.getAmbulance(u.getAmbulanceId()) == null) {
-                    DS.putAmbulance(new AmbulanceInfo(
-                        u.getAmbulanceId(), id, u.getDisplayName(), 32.1668, 34.9201, "available"
-                    ));
+                    AmbulanceInfo newAmb = new AmbulanceInfo(
+                            u.getAmbulanceId(), id, u.getDisplayName(), 32.1668, 34.9201, "available");
+                    if (u instanceof core.models.DriverUser du)
+                        newAmb.setAmbulanceNumber(du.getAmbulanceNumber());
+                    DS.putAmbulance(newAmb);
                 }
                 Map<String, Object> resp = new LinkedHashMap<>();
                 resp.put("id",          id);
@@ -352,6 +373,8 @@ public class RoutingController {
                 resp.put("role",        u.getRole());
                 resp.put("ambulanceId", u.getAmbulanceId());
                 resp.put("displayName", u.getDisplayName());
+                if (u instanceof core.models.DriverUser du)
+                    resp.put("ambulanceNumber", du.getAmbulanceNumber());
                 sendJson(ex, resp);
 
             } else if ("DELETE".equals(method)) {

@@ -13,6 +13,7 @@ public class CaseRecord {
     private String assignedDriverName;
     private String status;            // "pending" | "active" | "completed"
     private long   createdAt;
+    private long   arrivalTime;
 
     public CaseRecord() {}
     // full getters/setters for all fields
@@ -40,4 +41,6 @@ public class CaseRecord {
     public void   setStatus(String v)           { status = v; }
     public long   getCreatedAt()                { return createdAt; }
     public void   setCreatedAt(long v)          { createdAt = v; }
+    public long   getArrivalTime()              { return arrivalTime; }
+    public void   setArrivalTime(long v)        { arrivalTime = v; }
 }
