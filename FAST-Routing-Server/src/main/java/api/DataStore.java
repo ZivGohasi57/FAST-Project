@@ -15,14 +15,14 @@ import java.util.stream.*;
 
 public class DataStore {
 
-    private static final DataStore INSTANCE = new DataStore();
-    public static DataStore getInstance() { return INSTANCE; }
-
     private static final String PROJECT_ID = System.getenv().getOrDefault("FIREBASE_PROJECT_ID", "");
     private static final String BASE_URL   =
             "https://firestore.googleapis.com/v1/projects/" + PROJECT_ID + "/databases/(default)/documents";
     private static final List<String> SCOPES =
             List.of("https://www.googleapis.com/auth/cloud-platform");
+
+    private static final DataStore INSTANCE = new DataStore();
+    public static DataStore getInstance() { return INSTANCE; }
 
     private final GoogleCredentials credentials;
     private final HttpClient         http = HttpClient.newHttpClient();
