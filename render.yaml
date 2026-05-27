@@ -19,7 +19,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://fast-backend.onrender.com
+        value: https://fast-backend-7hia.onrender.com
     routes:
       - type: rewrite
         source: /*
