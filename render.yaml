@@ -5,14 +5,10 @@ services:
     runtime: docker
     dockerfilePath: ./FAST-Routing-Server/Dockerfile
     dockerContext: ./FAST-Routing-Server
-    plan: starter
+    plan: free
     envVars:
       - key: PORT
         value: 8082
-    disk:
-      name: fast-data
-      mountPath: /app/data
-      sizeGB: 1
 
   # ── Frontend: React static site ───────────────────────────────────────────
   - type: web
