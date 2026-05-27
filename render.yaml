@@ -1,0 +1,30 @@
+services:
+  # ── Backend: Java routing server ──────────────────────────────────────────
+  - type: web
+    name: fast-backend
+    runtime: docker
+    dockerfilePath: ./FAST-Routing-Server/Dockerfile
+    dockerContext: ./FAST-Routing-Server
+    plan: starter
+    envVars:
+      - key: PORT
+        value: 8082
+    disk:
+      name: fast-data
+      mountPath: /app/data
+      sizeGB: 1
+
+  # ── Frontend: React static site ───────────────────────────────────────────
+  - type: web
+    name: fast-frontend
+    runtime: static
+    rootDir: fast-frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://fast-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
