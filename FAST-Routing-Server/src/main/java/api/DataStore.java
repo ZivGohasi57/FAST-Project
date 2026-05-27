@@ -21,14 +21,6 @@ public class DataStore {
     private static final List<String> SCOPES =
             List.of("https://www.googleapis.com/auth/cloud-platform");
 
-    private static final DataStore INSTANCE = new DataStore();
-    public static DataStore getInstance() { return INSTANCE; }
-
-    private final GoogleCredentials credentials;
-    private final HttpClient         http = HttpClient.newHttpClient();
-    private final Gson               gson = new Gson();
-    private final Map<String, String> sessions = new ConcurrentHashMap<>();
-
     // ── In-memory cache ───────────────────────────────────────────────────────
 
     private static class CacheEntry {
@@ -41,14 +33,22 @@ public class DataStore {
         boolean isValid() { return System.currentTimeMillis() < expires; }
     }
 
-    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
-
+    // IMPORTANT: COL_TTL must be declared BEFORE INSTANCE to avoid null during static init
     private static final Map<String, Long> COL_TTL = Map.of(
         "cases",      2_000L,
         "ambulances", 2_000L,
         "users",      60_000L,
         "nogozones",  60_000L
     );
+
+    private static final DataStore INSTANCE = new DataStore();
+    public static DataStore getInstance() { return INSTANCE; }
+
+    private final GoogleCredentials credentials;
+    private final HttpClient         http = HttpClient.newHttpClient();
+    private final Gson               gson = new Gson();
+    private final Map<String, String> sessions = new ConcurrentHashMap<>();
+    private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
     private DataStore() {
         String sa = System.getenv("FIREBASE_SERVICE_ACCOUNT");
