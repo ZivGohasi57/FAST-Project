@@ -9,6 +9,10 @@ services:
     envVars:
       - key: PORT
         value: 8082
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false
 
   # ── Frontend: React static site ───────────────────────────────────────────
   - type: web
