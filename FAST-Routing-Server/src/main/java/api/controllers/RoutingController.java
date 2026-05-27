@@ -43,7 +43,7 @@ public class RoutingController {
 
     static void cors(HttpExchange ex) throws IOException {
         ex.getResponseHeaders().set("Access-Control-Allow-Origin",  "*");
-        ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+        ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
         ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type,Authorization");
     }
 
@@ -173,18 +173,40 @@ public class RoutingController {
         public void handle(HttpExchange ex) throws IOException {
             if (handleOptions(ex)) return;
             String path   = ex.getRequestURI().getPath();
-            String suffix = path.substring("/api/ambulances".length()); // e.g. "" or "/location"
+            String suffix = path.substring("/api/ambulances".length());
             String method = ex.getRequestMethod();
 
             if ("GET".equals(method) && suffix.isEmpty()) {
                 sendJson(ex, new ArrayList<>(DS.allAmbulances()));
+
+            } else if ("POST".equals(method) && suffix.isEmpty()) {
+                JsonObject json = body(ex);
+                String ambulanceNumber = json.get("ambulanceNumber").getAsString().trim();
+                if (ambulanceNumber.isEmpty()) { sendStatus(ex, 400); return; }
+                String ambId = "amb-" + ambulanceNumber;
+                AmbulanceInfo a = new AmbulanceInfo(ambId, "", "", 32.1668, 34.9201, "available");
+                a.setAmbulanceNumber(ambulanceNumber);
+                DS.putAmbulance(a);
+                sendJson(ex, a);
+
+            } else if ("DELETE".equals(method) && suffix.isEmpty()) {
+                Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
+                DS.deleteAmbulance(params.get("id"));
+                sendStatus(ex, 200);
+
             } else if ("POST".equals(method) && "/location".equals(suffix)) {
                 JsonObject json = body(ex);
-                String ambulanceId = json.get("ambulanceId").getAsString();
-                double lat = json.get("lat").getAsDouble();
-                double lon = json.get("lon").getAsDouble();
-                DS.updateLocation(ambulanceId, lat, lon);
+                DS.updateLocation(json.get("ambulanceId").getAsString(),
+                                  json.get("lat").getAsDouble(),
+                                  json.get("lon").getAsDouble());
                 sendStatus(ex, 200);
+
+            } else if ("POST".equals(method) && "/assign".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.assignDriverToAmbulance(json.get("ambulanceId").getAsString(),
+                                           json.get("driverId").getAsString());
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }

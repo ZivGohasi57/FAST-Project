@@ -21,7 +21,7 @@ export default function LoginPage() {
       if (!res.ok) { setError('שם משתמש או סיסמה שגויים'); setLoading(false); return; }
       const data = await res.json();
       localStorage.setItem('fastAuth', JSON.stringify(data));
-      if (data.role === 'driver')          navigate('/driver');
+      if (data.role === 'driver')          navigate('/pick-ambulance');
       else if (data.role === 'dispatcher') navigate('/dispatcher');
       else if (data.role === 'manager')    navigate('/manager');
     } catch { setError('שגיאת חיבור לשרת'); }

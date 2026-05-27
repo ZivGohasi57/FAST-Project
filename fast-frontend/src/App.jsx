@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage            from './pages/LoginPage';
 import DriverView           from './pages/DriverView';
+import AmbulanceSelectPage  from './pages/AmbulanceSelectPage';
 import DispatcherDashboard  from './pages/DispatcherDashboard';
 import ManagerSuite         from './pages/ManagerSuite';
 
@@ -20,7 +21,8 @@ function App() {
     <Router>
       <Routes>
         <Route path="/"           element={<LoginPage />} />
-        <Route path="/driver"     element={<ProtectedRoute allowedRole="driver"     element={<DriverView />} />} />
+        <Route path="/driver"          element={<ProtectedRoute allowedRole="driver"     element={<DriverView />} />} />
+        <Route path="/pick-ambulance" element={<ProtectedRoute allowedRole="driver"     element={<AmbulanceSelectPage />} />} />
         <Route path="/dispatcher" element={<ProtectedRoute allowedRole="dispatcher" element={<DispatcherDashboard />} />} />
         <Route path="/manager"    element={<ProtectedRoute allowedRole="manager"    element={<ManagerSuite />} />} />
       </Routes>

@@ -7,9 +7,10 @@ import { API_BASE } from '../config.js';
 const MAP_CENTER = [32.1501, 34.8914];
 
 const TABS = [
-  { id: 'users',  icon: '👥', label: 'משתמשים'    },
-  { id: 'events', icon: '📋', label: 'אירועים'     },
-  { id: 'zones',  icon: '🚫', label: 'אזורי איסור' },
+  { id: 'users',       icon: '👥', label: 'משתמשים'    },
+  { id: 'ambulances',  icon: '🚑', label: 'אמבולנסים'  },
+  { id: 'events',      icon: '📋', label: 'אירועים'     },
+  { id: 'zones',       icon: '🚫', label: 'אזורי איסור' },
 ];
 
 const ROLE_LABELS = { driver: 'נהג', dispatcher: 'מוקדן', manager: 'מנהל' };
@@ -52,9 +53,14 @@ export default function ManagerSuite() {
   const [tab, setTab] = useState('users');
 
   const [users,     setUsers]     = useState([]);
-  const [userForm,  setUserForm]  = useState({ username: '', password: '', role: 'driver', displayName: '', ambulanceId: '' });
+  const [userForm,  setUserForm]  = useState({ username: '', password: '', role: 'driver', displayName: '' });
   const [userError, setUserError] = useState('');
   const [userOk,    setUserOk]    = useState(false);
+
+  const [ambulances,    setAmbulances]    = useState([]);
+  const [ambNumber,     setAmbNumber]     = useState('');
+  const [ambError,      setAmbError]      = useState('');
+  const [ambOk,         setAmbOk]         = useState(false);
 
   const [cases,        setCases]        = useState([]);
   const [expandedCase, setExpandedCase] = useState(null);
@@ -68,29 +74,46 @@ export default function ManagerSuite() {
   const [zoneError,   setZoneError]   = useState('');
 
   useEffect(() => {
-    if (tab === 'users')  fetchUsers();
-    if (tab === 'events') fetchCases();
-    if (tab === 'zones')  fetchZones();
+    if (tab === 'users')       fetchUsers();
+    if (tab === 'ambulances')  fetchAmbulances();
+    if (tab === 'events')      fetchCases();
+    if (tab === 'zones')       fetchZones();
   }, [tab]); // eslint-disable-line
 
-  const fetchUsers = () => axios.get(`${API_BASE}/api/users`).then(r => setUsers(r.data)).catch(() => {});
-  const fetchCases = () => axios.get(`${API_BASE}/api/cases`).then(r => setCases(r.data)).catch(() => {});
-  const fetchZones = () => axios.get(`${API_BASE}/api/nogozones`).then(r => setZones(r.data)).catch(() => {});
+  const fetchUsers      = () => axios.get(`${API_BASE}/api/users`).then(r => setUsers(r.data)).catch(() => {});
+  const fetchAmbulances = () => axios.get(`${API_BASE}/api/ambulances`).then(r => setAmbulances(r.data)).catch(() => {});
+  const fetchCases      = () => axios.get(`${API_BASE}/api/cases`).then(r => setCases(r.data)).catch(() => {});
+  const fetchZones      = () => axios.get(`${API_BASE}/api/nogozones`).then(r => setZones(r.data)).catch(() => {});
 
   const handleAddUser = async () => {
     if (!userForm.username || !userForm.password || !userForm.displayName) {
       setUserError('יש למלא את כל השדות המסומנים ב-*'); return;
     }
-    if (userForm.role === 'driver' && !userForm.ambulanceId) {
-      setUserError('נהג חייב לקבל מזהה אמבולנס'); return;
-    }
     setUserError('');
     try {
       await axios.post(`${API_BASE}/api/users`, userForm);
-      setUserForm({ username: '', password: '', role: 'driver', displayName: '', ambulanceId: '' });
+      setUserForm({ username: '', password: '', role: 'driver', displayName: '' });
       setUserOk(true); setTimeout(() => setUserOk(false), 2500);
       fetchUsers();
     } catch { setUserError('שגיאה בהוספת משתמש'); }
+  };
+
+  const handleAddAmbulance = async () => {
+    const trimmed = ambNumber.trim();
+    if (!trimmed) { setAmbError('יש להכניס מספר אמבולנס'); return; }
+    setAmbError('');
+    try {
+      await axios.post(`${API_BASE}/api/ambulances`, { ambulanceNumber: trimmed });
+      setAmbNumber('');
+      setAmbOk(true); setTimeout(() => setAmbOk(false), 2500);
+      fetchAmbulances();
+    } catch { setAmbError('שגיאה בהוספת אמבולנס'); }
+  };
+
+  const handleDeleteAmbulance = async (id) => {
+    if (!window.confirm('למחוק אמבולנס זה?')) return;
+    await axios.delete(`${API_BASE}/api/ambulances?id=${id}`).catch(() => {});
+    fetchAmbulances();
   };
 
   const handleDeleteUser = async (id) => {
@@ -206,6 +229,84 @@ export default function ManagerSuite() {
                 <div style={{ width: 290, ...s.card, flexShrink: 0 }}>
                   <div style={s.cardTitle}>הוסף משתמש</div>
                   <UserForm userForm={userForm} setUserForm={setUserForm} userError={userError} userOk={userOk} handleAddUser={handleAddUser} />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ══ AMBULANCES TAB ══ */}
+          {tab === 'ambulances' && (
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
+
+              {/* Add form — mobile first */}
+              {isMobile && (
+                <div style={{ width: '100%', ...s.card }}>
+                  <div style={s.cardTitle}>הוסף אמבולנס</div>
+                  <AmbulanceForm ambNumber={ambNumber} setAmbNumber={setAmbNumber} ambError={ambError} ambOk={ambOk} handleAddAmbulance={handleAddAmbulance} />
+                </div>
+              )}
+
+              {/* List */}
+              <div style={{ flex: 1, ...s.card, overflowX: 'auto' }}>
+                <div style={s.cardTitle}>אמבולנסים ({ambulances.length})</div>
+                {ambulances.length === 0 ? (
+                  <div style={{ color: '#bbb', textAlign: 'center', padding: '32px 0', fontSize: 14 }}>
+                    אין אמבולנסים במערכת
+                  </div>
+                ) : (
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 300 : 'unset' }}>
+                    <thead>
+                      <tr>{['מספר', 'נהג נוכחי', 'סטטוס', ''].map(h => (
+                        <th key={h} style={s.th}>{h}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {ambulances.map(a => (
+                        <tr key={a.id}
+                          onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                          <td style={s.td}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <div style={{
+                                width: 36, height: 36, borderRadius: 10,
+                                background: 'linear-gradient(135deg,#1a1a2e,#2d3561)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                color: 'white', fontWeight: 800, fontSize: 13, flexShrink: 0,
+                              }}>
+                                {a.ambulanceNumber || a.id.replace('amb-', '')}
+                              </div>
+                              <code style={{ fontSize: 12, color: '#aaa' }}>{a.id}</code>
+                            </div>
+                          </td>
+                          <td style={s.td}>
+                            {a.driverName
+                              ? <b style={{ fontSize: 13 }}>{a.driverName}</b>
+                              : <span style={{ color: '#bbb', fontSize: 13 }}>ללא נהג</span>}
+                          </td>
+                          <td style={s.td}>
+                            <span style={{
+                              ...s.badge,
+                              background: a.status === 'available' ? '#edfaf1' : a.status === 'busy' ? '#fff3e0' : '#f5f5f5',
+                              color:      a.status === 'available' ? '#27ae60' : a.status === 'busy' ? '#e67e00'  : '#888',
+                            }}>
+                              {a.status === 'available' ? '● זמין' : a.status === 'busy' ? '● עסוק' : '● לא פעיל'}
+                            </span>
+                          </td>
+                          <td style={s.td}>
+                            <button onClick={() => handleDeleteAmbulance(a.id)} style={s.deleteBtn}>מחק</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              {/* Add form — desktop */}
+              {!isMobile && (
+                <div style={{ width: 260, ...s.card, flexShrink: 0 }}>
+                  <div style={s.cardTitle}>הוסף אמבולנס</div>
+                  <AmbulanceForm ambNumber={ambNumber} setAmbNumber={setAmbNumber} ambError={ambError} ambOk={ambOk} handleAddAmbulance={handleAddAmbulance} />
                 </div>
               )}
             </div>
@@ -373,7 +474,7 @@ function UserForm({ userForm, setUserForm, userError, userOk, handleAddUser }) {
       {userOk    && <div style={{ color: '#27ae60', fontSize: 13, background: '#eafaf1', padding: '8px 10px', borderRadius: 8 }}>✓ המשתמש נוסף</div>}
       <div>
         <label style={s.label}>תפקיד</label>
-        <select value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value, ambulanceId: '' }))} style={s.input}>
+        <select value={userForm.role} onChange={e => setUserForm(f => ({ ...f, role: e.target.value }))} style={s.input}>
           <option value="driver">נהג</option>
           <option value="dispatcher">מוקדן</option>
           <option value="manager">מנהל</option>
@@ -392,13 +493,37 @@ function UserForm({ userForm, setUserForm, userError, userOk, handleAddUser }) {
         <input type="password" value={userForm.password} onChange={e => setUserForm(f => ({ ...f, password: e.target.value }))} style={s.input} placeholder="••••••••" />
       </div>
       {userForm.role === 'driver' && (
-        <div>
-          <label style={s.label}>מזהה אמבולנס *</label>
-          <input value={userForm.ambulanceId} onChange={e => setUserForm(f => ({ ...f, ambulanceId: e.target.value }))} style={s.input} placeholder="amb-3" />
+        <div style={{ background: '#f0f9ff', border: '1px solid #bde0ff', borderRadius: 9, padding: '9px 11px', fontSize: 12, color: '#1565c0' }}>
+          💡 הנהג יבחר את האמבולנס שלו בעת הכניסה למערכת
         </div>
       )}
       <button onClick={handleAddUser} style={{ ...s.btn, background: '#1a1a2e', color: 'white', cursor: 'pointer', marginTop: 4 }}>
         + הוסף משתמש
+      </button>
+    </div>
+  );
+}
+
+function AmbulanceForm({ ambNumber, setAmbNumber, ambError, ambOk, handleAddAmbulance }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 11 }}>
+      {ambError && <div style={{ color: '#c0392b', fontSize: 13, background: '#fff0ef', padding: '8px 10px', borderRadius: 8 }}>⚠️ {ambError}</div>}
+      {ambOk    && <div style={{ color: '#27ae60', fontSize: 13, background: '#eafaf1', padding: '8px 10px', borderRadius: 8 }}>✓ האמבולנס נוסף</div>}
+      <div>
+        <label style={s.label}>מספר אמבולנס *</label>
+        <input
+          value={ambNumber}
+          onChange={e => setAmbNumber(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAddAmbulance()}
+          style={s.input}
+          placeholder="לדוג׳: 103"
+        />
+        <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>
+          מזהה מערכת יהיה: amb-{ambNumber || '???'}
+        </div>
+      </div>
+      <button onClick={handleAddAmbulance} style={{ ...s.btn, background: '#1a1a2e', color: 'white', cursor: 'pointer', marginTop: 4 }}>
+        + הוסף אמבולנס
       </button>
     </div>
   );

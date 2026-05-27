@@ -352,6 +352,39 @@ public class DataStore {
     }
 
     public void putAmbulance(AmbulanceInfo a) { putDoc("ambulances", a.getId(), ambulanceToMap(a)); }
+    public void deleteAmbulance(String id)   { deleteDoc("ambulances", id); }
+
+    public void assignDriverToAmbulance(String ambulanceId, String driverId) {
+        User driver = getById(driverId);
+        if (driver == null) return;
+
+        // Release driver from their old ambulance (if different)
+        String oldAmbId = driver.getAmbulanceId();
+        if (oldAmbId != null && !oldAmbId.isEmpty() && !oldAmbId.equals(ambulanceId)) {
+            Map<String, Object> oldAmb = getDoc("ambulances", oldAmbId);
+            if (oldAmb != null && driverId.equals(oldAmb.get("driverId"))) {
+                oldAmb.put("driverId", ""); oldAmb.put("driverName", "");
+                oldAmb.remove("id");
+                putDoc("ambulances", oldAmbId, oldAmb);
+            }
+        }
+
+        // Assign driver to new ambulance
+        Map<String, Object> ambDoc = getDoc("ambulances", ambulanceId);
+        if (ambDoc == null) return;
+        ambDoc.put("driverId",   driverId);
+        ambDoc.put("driverName", driver.getDisplayName());
+        ambDoc.put("status",     "available");
+        ambDoc.remove("id");
+        putDoc("ambulances", ambulanceId, ambDoc);
+
+        // Partial-update driver's ambulanceId in Firestore
+        String url = BASE_URL + "/users/" + driverId + "?updateMask.fieldPaths=ambulanceId";
+        Map<String, Object> m = new HashMap<>();
+        m.put("ambulanceId", ambulanceId);
+        httpPatch(url, gson.toJson(toFirestoreDoc(m)));
+        cache.remove("users");
+    }
 
     public void updateLocation(String id, double lat, double lon) {
         String url = BASE_URL + "/ambulances/" + id
