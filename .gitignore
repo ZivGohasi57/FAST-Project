@@ -53,3 +53,9 @@ graph-cache-v2/
 files_list.txt
 STAM.txt
 collect_all.py
+
+# ============================================
+# Deployment secrets (contain server IP)
+# ============================================
+deploy/config.env
+fast-frontend/.env.production

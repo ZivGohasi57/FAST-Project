@@ -1,0 +1,17 @@
+[Unit]
+Description=FAST Ambulance Dispatch Backend
+After=network.target
+
+[Service]
+Type=simple
+User=SERVICE_USER_PLACEHOLDER
+WorkingDirectory=APP_DIR_PLACEHOLDER/FAST-Routing-Server
+ExecStart=/usr/bin/java -XmxHEAP_PLACEHOLDER -jar APP_DIR_PLACEHOLDER/FAST-Routing-Server/target/fast-routing-1.0-SNAPSHOT.jar
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=PORT=8082
+
+[Install]
+WantedBy=multi-user.target
