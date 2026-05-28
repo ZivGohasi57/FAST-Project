@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public class RoutingController {
 
     static final FastRoutingEngineClient ENGINE_CLIENT =
-            new FastRoutingEngineClient("export.osm", "graph-cache-v2");
+            new FastRoutingEngineClient("fast_routing_map.osm.pbf", "graph-cache-v2");
 
     static final DataStore DS   = DataStore.getInstance();
     static final Gson      GSON = new Gson();
