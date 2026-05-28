@@ -387,10 +387,30 @@ public class DataStore {
     }
 
     public void updateLocation(String id, double lat, double lon) {
+        // Skip driver GPS updates when a manager has manually locked the position
+        Map<String, Object> existing = getDoc("ambulances", id);
+        if (existing != null && Boolean.TRUE.equals(existing.get("locationLocked"))) return;
         String url = BASE_URL + "/ambulances/" + id
                 + "?updateMask.fieldPaths=lat&updateMask.fieldPaths=lon";
         Map<String, Object> partial = new HashMap<>();
         partial.put("lat", lat); partial.put("lon", lon);
+        httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
+        cache.remove("ambulances");
+    }
+
+    public void overrideLocation(String id, double lat, double lon) {
+        String url = BASE_URL + "/ambulances/" + id
+                + "?updateMask.fieldPaths=lat&updateMask.fieldPaths=lon&updateMask.fieldPaths=locationLocked";
+        Map<String, Object> partial = new HashMap<>();
+        partial.put("lat", lat); partial.put("lon", lon); partial.put("locationLocked", true);
+        httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
+        cache.remove("ambulances");
+    }
+
+    public void releaseLocationLock(String id) {
+        String url = BASE_URL + "/ambulances/" + id + "?updateMask.fieldPaths=locationLocked";
+        Map<String, Object> partial = new HashMap<>();
+        partial.put("locationLocked", false);
         httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
         cache.remove("ambulances");
     }
@@ -429,9 +449,10 @@ public class DataStore {
 
     private Map<String, Object> ambulanceToMap(AmbulanceInfo a) {
         Map<String, Object> m = new HashMap<>();
-        m.put("driverId",   a.getDriverId());   m.put("driverName", a.getDriverName());
-        m.put("lat",        a.getLat());         m.put("lon",        a.getLon());
-        m.put("status",     a.getStatus());
+        m.put("driverId",       a.getDriverId());     m.put("driverName", a.getDriverName());
+        m.put("lat",            a.getLat());           m.put("lon",        a.getLon());
+        m.put("status",         a.getStatus());
+        m.put("locationLocked", a.isLocationLocked());
         if (a.getAmbulanceNumber() != null) m.put("ambulanceNumber", a.getAmbulanceNumber());
         return m;
     }
@@ -440,6 +461,7 @@ public class DataStore {
         AmbulanceInfo a = new AmbulanceInfo(str(m,"id"), str(m,"driverId"), str(m,"driverName"),
                 dbl(m,"lat"), dbl(m,"lon"), str(m,"status"));
         a.setAmbulanceNumber((String) m.get("ambulanceNumber"));
+        a.setLocationLocked(Boolean.TRUE.equals(m.get("locationLocked")));
         return a;
     }
 

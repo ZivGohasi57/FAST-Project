@@ -338,7 +338,7 @@ export default function DispatcherDashboard() {
               {etaResults.map(row => (
                 <div key={row.ambulanceId} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>🚑 אמב. {row.ambulanceNumber || row.ambulanceId?.replace('amb-', '')}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>🚑 אמב. {row.ambulanceNumber || ambulances.find(a => a.id === row.ambulanceId)?.ambulanceNumber || row.ambulanceId?.replace('amb-', '')}</div>
                     {row.driverName && <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>{row.driverName}</div>}
                     <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 12, color: '#555' }}>🚗 <b style={{ color: '#007aff' }}>{fmtETA(row.routineEtaSec)}</b></span>
@@ -348,7 +348,7 @@ export default function DispatcherDashboard() {
                       ● {row.status === 'available' ? 'זמין' : 'עסוק'}
                     </div>
                   </div>
-                  <button onClick={() => handleAssign(row.ambulanceId, row.driverName, row.ambulanceNumber)}
+                  <button onClick={() => handleAssign(row.ambulanceId, row.driverName, row.ambulanceNumber || ambulances.find(a => a.id === row.ambulanceId)?.ambulanceNumber)}
                     disabled={loadingAssign || row.status !== 'available'} style={{
                       padding: '10px 18px', border: 'none', borderRadius: 10,
                       fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
@@ -428,7 +428,7 @@ export default function DispatcherDashboard() {
                 {/* Details */}
                 <div style={{ fontSize: 13, color: '#444', lineHeight: 1.9, marginBottom: 10 }}>
                   <div>📍 {m.address}</div>
-                  <div>🚑 אמב. {m.assignedAmbulanceId?.replace('amb-', '') || m.assignedDriverName}</div>
+                  <div>🚑 אמב. {ambulances.find(a => a.id === m.assignedAmbulanceId)?.ambulanceNumber || m.assignedAmbulanceId?.replace('amb-', '') || m.assignedDriverName}</div>
                   {m.patientDetails && <div>👤 {m.patientDetails}</div>}
                 </div>
                 {/* Cancel button */}

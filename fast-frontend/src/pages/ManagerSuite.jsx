@@ -32,10 +32,27 @@ function ZoneDrawer({ active, onPoint }) {
   return null;
 }
 
+function LocationPicker({ onPick }) {
+  useMapEvents({ click: (e) => onPick({ lat: e.latlng.lat, lon: e.latlng.lng }) });
+  return null;
+}
+
 const cornerIcon = L.divIcon({
   className: '',
   html: `<div style="width:12px;height:12px;border-radius:50%;background:#ff3b30;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>`,
   iconSize: [12, 12], iconAnchor: [6, 6],
+});
+
+const makeAmbPickIcon = (isTarget) => L.divIcon({
+  className: '',
+  html: `<div style="width:36px;height:36px;border-radius:50%;background:${isTarget ? 'linear-gradient(135deg,#ff9500,#e67e00)' : 'linear-gradient(135deg,#1a1a2e,#2d3561)'};display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 ${isTarget ? '3px #ff9500' : '2px white'};">🚑</div>`,
+  iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
+});
+
+const pickedPinIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#34c759,#28a745);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.5),0 0 0 3px white;">📍</div>`,
+  iconSize: [28, 28], iconAnchor: [14, 14],
 });
 
 function useIsMobile() {
@@ -62,11 +79,10 @@ export default function ManagerSuite() {
   const [ambError,      setAmbError]      = useState('');
   const [ambOk,         setAmbOk]         = useState(false);
 
-  const [overrideAmbId,  setOverrideAmbId]  = useState(null);
-  const [overrideLat,    setOverrideLat]    = useState('');
-  const [overrideLon,    setOverrideLon]    = useState('');
-  const [overrideOk,     setOverrideOk]     = useState(false);
-  const [overrideError,  setOverrideError]  = useState('');
+  const [locationPickAmbId,  setLocationPickAmbId]  = useState(null);
+  const [locationPickPos,    setLocationPickPos]    = useState(null);
+  const [locationPickSaving, setLocationPickSaving] = useState(false);
+  const [locationPickError,  setLocationPickError]  = useState('');
 
   const [cases,        setCases]        = useState([]);
   const [expandedCase, setExpandedCase] = useState(null);
@@ -122,17 +138,24 @@ export default function ManagerSuite() {
     fetchAmbulances();
   };
 
-  const handleOverrideLocation = async () => {
-    const lat = parseFloat(overrideLat);
-    const lon = parseFloat(overrideLon);
-    if (isNaN(lat) || isNaN(lon)) { setOverrideError('ערכים לא תקינים'); return; }
-    setOverrideError('');
+  const handleConfirmLocation = async () => {
+    if (!locationPickPos || !locationPickAmbId) return;
+    setLocationPickSaving(true); setLocationPickError('');
     try {
-      await axios.post(`${API_BASE}/api/ambulances/location`, { ambulanceId: overrideAmbId, lat, lon });
-      setOverrideOk(true);
-      setTimeout(() => { setOverrideOk(false); setOverrideAmbId(null); setOverrideLat(''); setOverrideLon(''); }, 2000);
+      await axios.post(`${API_BASE}/api/ambulances/override-location`, {
+        ambulanceId: locationPickAmbId, lat: locationPickPos.lat, lon: locationPickPos.lon,
+      });
+      setLocationPickAmbId(null); setLocationPickPos(null);
       fetchAmbulances();
-    } catch { setOverrideError('שגיאה בעדכון המיקום'); }
+    } catch { setLocationPickError('שגיאה בעדכון המיקום'); }
+    setLocationPickSaving(false);
+  };
+
+  const handleReleaseLocation = async (ambulanceId) => {
+    try {
+      await axios.post(`${API_BASE}/api/ambulances/release-location`, { ambulanceId });
+      fetchAmbulances();
+    } catch {}
   };
 
   const handleDeleteUser = async (id) => {
@@ -281,8 +304,7 @@ export default function ManagerSuite() {
                     </thead>
                     <tbody>
                       {ambulances.map(a => (
-                        <React.Fragment key={a.id}>
-                        <tr
+                        <tr key={a.id}
                           onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <td style={s.td}>
@@ -304,51 +326,37 @@ export default function ManagerSuite() {
                               : <span style={{ color: '#bbb', fontSize: 13 }}>ללא נהג</span>}
                           </td>
                           <td style={s.td}>
-                            <span style={{
-                              ...s.badge,
-                              background: a.status === 'available' ? '#edfaf1' : a.status === 'busy' ? '#fff3e0' : '#f5f5f5',
-                              color:      a.status === 'available' ? '#27ae60' : a.status === 'busy' ? '#e67e00'  : '#888',
-                            }}>
-                              {a.status === 'available' ? '● זמין' : a.status === 'busy' ? '● עסוק' : '● לא פעיל'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                              <span style={{
+                                ...s.badge,
+                                background: a.status === 'available' ? '#edfaf1' : a.status === 'busy' ? '#fff3e0' : '#f5f5f5',
+                                color:      a.status === 'available' ? '#27ae60' : a.status === 'busy' ? '#e67e00'  : '#888',
+                              }}>
+                                {a.status === 'available' ? '● זמין' : a.status === 'busy' ? '● עסוק' : '● לא פעיל'}
+                              </span>
+                              {a.locationLocked && (
+                                <span style={{ ...s.badge, background: '#fff3e0', color: '#e65100', cursor: 'default' }} title="מיקום נעול ידנית">🔒 נעול</span>
+                              )}
+                            </div>
                           </td>
                           <td style={s.td}>
                             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                               <button onClick={() => handleDeleteAmbulance(a.id)} style={s.deleteBtn}>מחק</button>
                               <button
-                                onClick={() => { setOverrideAmbId(overrideAmbId === a.id ? null : a.id); setOverrideLat(''); setOverrideLon(''); setOverrideError(''); setOverrideOk(false); }}
+                                onClick={() => { setLocationPickAmbId(a.id); setLocationPickPos(null); setLocationPickError(''); }}
                                 style={{ ...s.deleteBtn, borderColor: '#90caf9', background: '#e3f2fd', color: '#1565c0' }}
                               >
                                 📍 מיקום
                               </button>
+                              {a.locationLocked && (
+                                <button onClick={() => handleReleaseLocation(a.id)}
+                                  style={{ ...s.deleteBtn, borderColor: '#ffe082', background: '#fff8e1', color: '#e65100' }}>
+                                  🔓 שחרר
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
-                        {overrideAmbId === a.id && (
-                          <tr>
-                            <td colSpan={4} style={{ padding: '4px 12px 14px', background: '#f0f7ff', borderBottom: '1px solid #e8eaed' }}>
-                              <div style={{ fontSize: 11, color: '#1565c0', fontWeight: 700, marginBottom: 8 }}>
-                                🧪 עדכון מיקום ידני — לצורכי בדיקות בלבד
-                              </div>
-                              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                                <div>
-                                  <label style={{ ...s.label, fontSize: 11 }}>קו רוחב (lat)</label>
-                                  <input value={overrideLat} onChange={e => setOverrideLat(e.target.value)} placeholder="32.1668" style={{ ...s.input, width: 110 }} />
-                                </div>
-                                <div>
-                                  <label style={{ ...s.label, fontSize: 11 }}>קו אורך (lon)</label>
-                                  <input value={overrideLon} onChange={e => setOverrideLon(e.target.value)} placeholder="34.9201" style={{ ...s.input, width: 110 }} />
-                                </div>
-                                <button onClick={handleOverrideLocation} style={{ padding: '10px 16px', background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 9, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                                  עדכן
-                                </button>
-                                {overrideOk    && <span style={{ color: '#27ae60', fontSize: 13, fontWeight: 600 }}>✓ מיקום עודכן</span>}
-                                {overrideError && <span style={{ color: '#c0392b', fontSize: 12 }}>⚠️ {overrideError}</span>}
-                              </div>
-                            </td>
-                          </tr>
-                        )}
-                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -516,6 +524,61 @@ export default function ManagerSuite() {
 
       {/* Bottom nav — mobile only */}
       {isMobile && <Sidebar />}
+
+      {/* ── Location Pick Overlay ── */}
+      {locationPickAmbId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+          {/* Header bar */}
+          <div style={{ background: '#1a1a2e', color: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flexShrink: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
+              📍 בחר מיקום — אמב. {ambulances.find(a => a.id === locationPickAmbId)?.ambulanceNumber || locationPickAmbId}
+            </div>
+            {locationPickPos
+              ? <div style={{ fontSize: 12, color: '#aaa' }}>{locationPickPos.lat.toFixed(5)}, {locationPickPos.lon.toFixed(5)}</div>
+              : <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>לחץ על המפה לבחירת מיקום</div>
+            }
+            <div style={{ marginRight: 'auto', display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleConfirmLocation}
+                disabled={!locationPickPos || locationPickSaving}
+                style={{ padding: '8px 20px', border: 'none', borderRadius: 8, background: locationPickPos ? '#34c759' : '#444', color: 'white', fontWeight: 700, fontSize: 14, cursor: locationPickPos && !locationPickSaving ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+              >
+                {locationPickSaving ? '...' : '✓ אשר מיקום'}
+              </button>
+              <button
+                onClick={() => { setLocationPickAmbId(null); setLocationPickPos(null); setLocationPickError(''); }}
+                style={{ padding: '8px 16px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, background: 'transparent', color: 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                ✕ ביטול
+              </button>
+            </div>
+          </div>
+
+          {locationPickError && (
+            <div style={{ background: '#fff0ef', color: '#c0392b', padding: '8px 16px', fontSize: 13, flexShrink: 0 }}>
+              ⚠️ {locationPickError}
+            </div>
+          )}
+
+          {/* Map */}
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: 'crosshair' }}>
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />
+              <LocationPicker onPick={setLocationPickPos} />
+              {ambulances.map(a =>
+                a.lat && a.lon
+                  ? <Marker key={a.id} position={[a.lat, a.lon]} icon={makeAmbPickIcon(a.id === locationPickAmbId)}>
+                      <Popup><b>{a.ambulanceNumber || a.id}</b></Popup>
+                    </Marker>
+                  : null
+              )}
+              {locationPickPos && (
+                <Marker position={[locationPickPos.lat, locationPickPos.lon]} icon={pickedPinIcon} />
+              )}
+            </MapContainer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -201,6 +201,18 @@ public class RoutingController {
                                   json.get("lon").getAsDouble());
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/override-location".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.overrideLocation(json.get("ambulanceId").getAsString(),
+                                    json.get("lat").getAsDouble(),
+                                    json.get("lon").getAsDouble());
+                sendStatus(ex, 200);
+
+            } else if ("POST".equals(method) && "/release-location".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.releaseLocationLock(json.get("ambulanceId").getAsString());
+                sendStatus(ex, 200);
+
             } else if ("POST".equals(method) && "/assign".equals(suffix)) {
                 JsonObject json = body(ex);
                 DS.assignDriverToAmbulance(json.get("ambulanceId").getAsString(),
