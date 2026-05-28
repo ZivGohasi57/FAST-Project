@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Rectangle, Marker, Popup, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -62,6 +62,12 @@ export default function ManagerSuite() {
   const [ambError,      setAmbError]      = useState('');
   const [ambOk,         setAmbOk]         = useState(false);
 
+  const [overrideAmbId,  setOverrideAmbId]  = useState(null);
+  const [overrideLat,    setOverrideLat]    = useState('');
+  const [overrideLon,    setOverrideLon]    = useState('');
+  const [overrideOk,     setOverrideOk]     = useState(false);
+  const [overrideError,  setOverrideError]  = useState('');
+
   const [cases,        setCases]        = useState([]);
   const [expandedCase, setExpandedCase] = useState(null);
   const [eventFilter,  setEventFilter]  = useState('all');
@@ -114,6 +120,19 @@ export default function ManagerSuite() {
     if (!window.confirm('למחוק אמבולנס זה?')) return;
     await axios.delete(`${API_BASE}/api/ambulances?id=${id}`).catch(() => {});
     fetchAmbulances();
+  };
+
+  const handleOverrideLocation = async () => {
+    const lat = parseFloat(overrideLat);
+    const lon = parseFloat(overrideLon);
+    if (isNaN(lat) || isNaN(lon)) { setOverrideError('ערכים לא תקינים'); return; }
+    setOverrideError('');
+    try {
+      await axios.post(`${API_BASE}/api/ambulances/location`, { ambulanceId: overrideAmbId, lat, lon });
+      setOverrideOk(true);
+      setTimeout(() => { setOverrideOk(false); setOverrideAmbId(null); setOverrideLat(''); setOverrideLon(''); }, 2000);
+      fetchAmbulances();
+    } catch { setOverrideError('שגיאה בעדכון המיקום'); }
   };
 
   const handleDeleteUser = async (id) => {
@@ -262,7 +281,8 @@ export default function ManagerSuite() {
                     </thead>
                     <tbody>
                       {ambulances.map(a => (
-                        <tr key={a.id}
+                        <React.Fragment key={a.id}>
+                        <tr
                           onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                           onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                           <td style={s.td}>
@@ -293,9 +313,42 @@ export default function ManagerSuite() {
                             </span>
                           </td>
                           <td style={s.td}>
-                            <button onClick={() => handleDeleteAmbulance(a.id)} style={s.deleteBtn}>מחק</button>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <button onClick={() => handleDeleteAmbulance(a.id)} style={s.deleteBtn}>מחק</button>
+                              <button
+                                onClick={() => { setOverrideAmbId(overrideAmbId === a.id ? null : a.id); setOverrideLat(''); setOverrideLon(''); setOverrideError(''); setOverrideOk(false); }}
+                                style={{ ...s.deleteBtn, borderColor: '#90caf9', background: '#e3f2fd', color: '#1565c0' }}
+                              >
+                                📍 מיקום
+                              </button>
+                            </div>
                           </td>
                         </tr>
+                        {overrideAmbId === a.id && (
+                          <tr>
+                            <td colSpan={4} style={{ padding: '4px 12px 14px', background: '#f0f7ff', borderBottom: '1px solid #e8eaed' }}>
+                              <div style={{ fontSize: 11, color: '#1565c0', fontWeight: 700, marginBottom: 8 }}>
+                                🧪 עדכון מיקום ידני — לצורכי בדיקות בלבד
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                                <div>
+                                  <label style={{ ...s.label, fontSize: 11 }}>קו רוחב (lat)</label>
+                                  <input value={overrideLat} onChange={e => setOverrideLat(e.target.value)} placeholder="32.1668" style={{ ...s.input, width: 110 }} />
+                                </div>
+                                <div>
+                                  <label style={{ ...s.label, fontSize: 11 }}>קו אורך (lon)</label>
+                                  <input value={overrideLon} onChange={e => setOverrideLon(e.target.value)} placeholder="34.9201" style={{ ...s.input, width: 110 }} />
+                                </div>
+                                <button onClick={handleOverrideLocation} style={{ padding: '10px 16px', background: '#1a1a2e', color: 'white', border: 'none', borderRadius: 9, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                                  עדכן
+                                </button>
+                                {overrideOk    && <span style={{ color: '#27ae60', fontSize: 13, fontWeight: 600 }}>✓ מיקום עודכן</span>}
+                                {overrideError && <span style={{ color: '#c0392b', fontSize: 12 }}>⚠️ {overrideError}</span>}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>

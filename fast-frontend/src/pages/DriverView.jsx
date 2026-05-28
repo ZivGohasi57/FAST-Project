@@ -327,7 +327,7 @@ export default function DriverView() {
       axios.get(`${API_BASE}/api/cases/active`, { params: { ambulanceId: ambId } })
         .then(r => {
           const c = r.data;
-          if (c && c.status === 'cancelled') {
+          const resetNav = () => {
             setActiveCase(null);
             prevCaseIdRef.current = null;
             setRouteCoords([]);
@@ -336,6 +336,12 @@ export default function DriverView() {
             setEndPos(null);
             setEndText('');
             setSearchOpen(true);
+          };
+          if (c && c.status === 'cancelled') {
+            resetNav();
+          } else if (!c && prevCaseIdRef.current !== null) {
+            // Case was cleared by dispatcher (cancelled/completed) — backend returned null
+            resetNav();
           } else {
             setActiveCase(c);
           }

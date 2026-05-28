@@ -320,6 +320,7 @@ public class RoutingController {
 
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("ambulanceId",     amb.getId());
+                row.put("ambulanceNumber", amb.getAmbulanceNumber() != null ? amb.getAmbulanceNumber() : amb.getId().replace("amb-", ""));
                 row.put("driverName",      amb.getDriverName());
                 row.put("status",          amb.getStatus());
                 row.put("routineEtaSec",   routineResp.getEstimatedTimeSeconds());

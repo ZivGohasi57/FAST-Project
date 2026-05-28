@@ -124,7 +124,7 @@ export default function DispatcherDashboard() {
     setLoadingEta(false);
   };
 
-  const handleAssign = async (ambulanceId, driverName) => {
+  const handleAssign = async (ambulanceId, driverName, ambulanceNumber) => {
     setLoadingAssign(true); setError('');
     try {
       const { data: caseData } = await axios.post(`${API_BASE}/api/cases`, {
@@ -133,7 +133,7 @@ export default function DispatcherDashboard() {
         urgency: form.urgency, notes: form.notes,
       });
       await axios.post(`${API_BASE}/api/cases/assign`, { caseId: caseData.id, ambulanceId });
-      setActiveCase({ ...caseData, assignedAmbulanceId: ambulanceId, assignedDriverName: driverName });
+      setActiveCase({ ...caseData, assignedAmbulanceId: ambulanceId, assignedDriverName: driverName, assignedAmbulanceNumber: ambulanceNumber });
       const amb = ambulances.find(a => a.id === ambulanceId);
       if (amb) {
         const { data: route } = await axios.get(`${API_BASE}/api/route`, {
@@ -338,7 +338,8 @@ export default function DispatcherDashboard() {
               {etaResults.map(row => (
                 <div key={row.ambulanceId} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 5 }}>🚑 {row.driverName}</div>
+                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>🚑 אמב. {row.ambulanceNumber || row.ambulanceId?.replace('amb-', '')}</div>
+                    {row.driverName && <div style={{ fontSize: 12, color: '#888', marginBottom: 5 }}>{row.driverName}</div>}
                     <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 12, color: '#555' }}>🚗 <b style={{ color: '#007aff' }}>{fmtETA(row.routineEtaSec)}</b></span>
                       <span style={{ fontSize: 12, color: '#555' }}>🚨 <b style={{ color: '#ff3b30' }}>{fmtETA(row.emergencyEtaSec)}</b></span>
@@ -347,7 +348,7 @@ export default function DispatcherDashboard() {
                       ● {row.status === 'available' ? 'זמין' : 'עסוק'}
                     </div>
                   </div>
-                  <button onClick={() => handleAssign(row.ambulanceId, row.driverName)}
+                  <button onClick={() => handleAssign(row.ambulanceId, row.driverName, row.ambulanceNumber)}
                     disabled={loadingAssign || row.status !== 'available'} style={{
                       padding: '10px 18px', border: 'none', borderRadius: 10,
                       fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit',
@@ -368,7 +369,7 @@ export default function DispatcherDashboard() {
               <div style={{ fontWeight: 700, fontSize: 14, color: '#7a5900', marginBottom: 8 }}>🚨 קריאה פעילה — {activeCase.id}</div>
               <div style={{ fontSize: 13, color: '#555', lineHeight: 1.9 }}>
                 <div>📍 {activeCase.address}</div>
-                <div>🚑 נהג: <b>{activeCase.assignedDriverName}</b></div>
+                <div>🚑 אמבולנס: <b>{activeCase.assignedAmbulanceNumber || activeCase.assignedAmbulanceId?.replace('amb-', '')}</b>{activeCase.assignedDriverName && <span style={{ color: '#999', fontWeight: 400 }}> ({activeCase.assignedDriverName})</span>}</div>
                 {activeCase.patientDetails && <div>👤 {activeCase.patientDetails}</div>}
                 {activeCase.urgency === 'emergency'
                   ? <div style={{ color: '#ff3b30', fontWeight: 600 }}>🚨 חירום</div>
@@ -427,7 +428,7 @@ export default function DispatcherDashboard() {
                 {/* Details */}
                 <div style={{ fontSize: 13, color: '#444', lineHeight: 1.9, marginBottom: 10 }}>
                   <div>📍 {m.address}</div>
-                  <div>🚑 {m.assignedDriverName}</div>
+                  <div>🚑 אמב. {m.assignedAmbulanceId?.replace('amb-', '') || m.assignedDriverName}</div>
                   {m.patientDetails && <div>👤 {m.patientDetails}</div>}
                 </div>
                 {/* Cancel button */}
@@ -478,7 +479,8 @@ export default function DispatcherDashboard() {
           {ambulances.map(amb => (
             <Marker key={amb.id} position={[amb.lat, amb.lon]} icon={amb.status === 'available' ? iconAvailable : iconBusy}>
               <Popup><div style={{ direction: 'rtl', minWidth: 130, fontSize: 13 }}>
-                <b>{amb.driverName}</b><br />
+                <b>🚑 אמב. {amb.ambulanceNumber || amb.id?.replace('amb-', '')}</b><br />
+                {amb.driverName && <span style={{ color: '#888', fontSize: 12 }}>{amb.driverName}<br /></span>}
                 <span style={{ color: amb.status === 'available' ? '#34c759' : '#ff9500', fontWeight: 600 }}>
                   ● {amb.status === 'available' ? 'זמין' : 'עסוק'}
                 </span>
