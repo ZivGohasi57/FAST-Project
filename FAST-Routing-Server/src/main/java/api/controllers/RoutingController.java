@@ -207,6 +207,18 @@ public class RoutingController {
                                            json.get("driverId").getAsString());
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/force-location".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.forceLocation(json.get("ambulanceId").getAsString(),
+                                 json.get("lat").getAsDouble(),
+                                 json.get("lon").getAsDouble());
+                sendStatus(ex, 200);
+
+            } else if ("POST".equals(method) && "/unlock-location".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.clearLocationLock(json.get("ambulanceId").getAsString());
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }
@@ -255,9 +267,9 @@ public class RoutingController {
 
             } else if ("POST".equals(method) && "/assign".equals(suffix)) {
                 JsonObject json = body(ex);
-                DS.assignCase(json.get("caseId").getAsString(),
-                              json.get("ambulanceId").getAsString());
-                sendStatus(ex, 200);
+                boolean ok = DS.assignCase(json.get("caseId").getAsString(),
+                                           json.get("ambulanceId").getAsString());
+                sendStatus(ex, ok ? 200 : 404);
 
             } else if ("POST".equals(method) && "/complete".equals(suffix)) {
                 JsonObject json = body(ex);

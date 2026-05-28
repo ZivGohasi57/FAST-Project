@@ -32,10 +32,21 @@ function ZoneDrawer({ active, onPoint }) {
   return null;
 }
 
+function ForceLocPicker({ onPoint }) {
+  useMapEvents({ click: (e) => onPoint([e.latlng.lat, e.latlng.lng]) });
+  return null;
+}
+
 const cornerIcon = L.divIcon({
   className: '',
   html: `<div style="width:12px;height:12px;border-radius:50%;background:#ff3b30;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>`,
   iconSize: [12, 12], iconAnchor: [6, 6],
+});
+
+const ambLocIcon = L.divIcon({
+  className: '',
+  html: `<div style="width:14px;height:14px;border-radius:50%;background:#1565c0;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.5)"></div>`,
+  iconSize: [14, 14], iconAnchor: [7, 7],
 });
 
 function useIsMobile() {
@@ -61,6 +72,8 @@ export default function ManagerSuite() {
   const [ambNumber,     setAmbNumber]     = useState('');
   const [ambError,      setAmbError]      = useState('');
   const [ambOk,         setAmbOk]         = useState(false);
+  const [forceLocAmbId, setForceLocAmbId] = useState(null);
+  const [forceLocError, setForceLocError] = useState('');
 
   const [cases,        setCases]        = useState([]);
   const [expandedCase, setExpandedCase] = useState(null);
@@ -120,6 +133,22 @@ export default function ManagerSuite() {
     if (!window.confirm('למחוק משתמש זה?')) return;
     await axios.delete(`${API_BASE}/api/users?id=${id}`).catch(() => {});
     fetchUsers();
+  };
+
+  const handleForceLocation = async (pt) => {
+    try {
+      await axios.post(`${API_BASE}/api/ambulances/force-location`, {
+        ambulanceId: forceLocAmbId, lat: pt[0], lon: pt[1],
+      });
+      setForceLocAmbId(null);
+      setForceLocError('');
+      fetchAmbulances();
+    } catch { setForceLocError('שגיאה בעדכון המיקום'); }
+  };
+
+  const handleUnlockLocation = async (id) => {
+    await axios.post(`${API_BASE}/api/ambulances/unlock-location`, { ambulanceId: id }).catch(() => {});
+    fetchAmbulances();
   };
 
   const handleMapPoint = (pt) => {
@@ -183,7 +212,7 @@ export default function ManagerSuite() {
           <div style={{ fontWeight: 700, fontSize: 16 }}>{TABS.find(t => t.id === tab)?.label}</div>
         </div>
 
-        <div style={{ flex: 1, overflow: tab === 'zones' ? 'hidden' : 'auto', padding: tab === 'zones' ? 0 : (isMobile ? 14 : 22), minHeight: 0 }}>
+        <div style={{ flex: 1, overflow: (tab === 'zones' || (tab === 'ambulances' && forceLocAmbId)) ? 'hidden' : 'auto', padding: (tab === 'zones' || (tab === 'ambulances' && forceLocAmbId)) ? 0 : (isMobile ? 14 : 22), minHeight: 0 }}>
 
           {/* ══ USERS TAB ══ */}
           {tab === 'users' && (
@@ -234,8 +263,48 @@ export default function ManagerSuite() {
             </div>
           )}
 
-          {/* ══ AMBULANCES TAB ══ */}
-          {tab === 'ambulances' && (
+          {/* ══ AMBULANCES TAB — force-location map mode ══ */}
+          {tab === 'ambulances' && forceLocAmbId && (
+            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%' }}>
+              {/* Sidebar */}
+              <div style={{
+                width: isMobile ? '100%' : 300,
+                maxHeight: isMobile ? '40vh' : 'unset',
+                background: '#f8f9fb', borderLeft: isMobile ? 'none' : '1px solid #e8eaed',
+                borderBottom: isMobile ? '1px solid #e8eaed' : 'none',
+                overflowY: 'auto', padding: 14,
+                display: 'flex', flexDirection: 'column', gap: 10, flexShrink: 0,
+              }}>
+                <div style={s.cardTitle}>📍 קביעת מיקום ידנית</div>
+                <div style={{ fontSize: 13, color: '#7a5900', background: '#fff8e1', padding: '9px 11px', borderRadius: 10, border: '1px solid #ffe082', lineHeight: 1.6 }}>
+                  <b>🚑 {ambulances.find(a => a.id === forceLocAmbId)?.driverName || forceLocAmbId}</b>
+                  <br/>לחץ על המפה לבחירת המיקום הרצוי לאמבולנס. הנהג לא יוכל לדרוס מיקום זה.
+                </div>
+                {forceLocError && (
+                  <div style={{ color: '#c0392b', fontSize: 12, background: '#fff0ef', padding: '8px 10px', borderRadius: 8 }}>⚠️ {forceLocError}</div>
+                )}
+                <button onClick={() => { setForceLocAmbId(null); setForceLocError(''); }}
+                  style={{ padding: '10px 0', border: 'none', borderRadius: 9, background: '#e0e0e0', color: '#555', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  ביטול
+                </button>
+              </div>
+              {/* Map */}
+              <div style={{ flex: 1, minHeight: isMobile ? '60vw' : 'unset' }}>
+                <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: 'crosshair' }}>
+                  <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />
+                  <ForceLocPicker onPoint={handleForceLocation} />
+                  {ambulances.filter(a => a.id === forceLocAmbId && a.lat && a.lon).map(a => (
+                    <Marker key={a.id} position={[a.lat, a.lon]} icon={ambLocIcon}>
+                      <Popup><b>🚑 {a.driverName || a.id}</b><br/>מיקום נוכחי</Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
+              </div>
+            </div>
+          )}
+
+          {/* ══ AMBULANCES TAB — normal view ══ */}
+          {tab === 'ambulances' && !forceLocAmbId && (
             <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
 
               {/* Add form — mobile first */}
@@ -254,7 +323,7 @@ export default function ManagerSuite() {
                     אין אמבולנסים במערכת
                   </div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 300 : 'unset' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 420 : 'unset' }}>
                     <thead>
                       <tr>{['מספר', 'נהג נוכחי', 'סטטוס', ''].map(h => (
                         <th key={h} style={s.th}>{h}</th>
@@ -291,9 +360,20 @@ export default function ManagerSuite() {
                             }}>
                               {a.status === 'available' ? '● זמין' : a.status === 'busy' ? '● עסוק' : '● לא פעיל'}
                             </span>
+                            {a.locationLocked && <span style={{ display: 'block', fontSize: 10, color: '#7a5900', marginTop: 3 }}>🔒 מיקום נעול</span>}
                           </td>
                           <td style={s.td}>
-                            <button onClick={() => handleDeleteAmbulance(a.id)} style={s.deleteBtn}>מחק</button>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <button onClick={() => setForceLocAmbId(a.id)} style={{ padding: '5px 10px', border: '1px solid #90caf9', borderRadius: 8, background: '#e3f2fd', color: '#1565c0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                📍 מיקום
+                              </button>
+                              {a.locationLocked && (
+                                <button onClick={() => handleUnlockLocation(a.id)} style={{ padding: '5px 10px', border: '1px solid #a8e6bc', borderRadius: 8, background: '#edfaf1', color: '#27ae60', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}>
+                                  🔓 שחרר
+                                </button>
+                              )}
+                              <button onClick={() => handleDeleteAmbulance(a.id)} style={s.deleteBtn}>מחק</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
