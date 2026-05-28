@@ -105,7 +105,9 @@ public class DataStore {
 
     private JsonObject toFirestoreDoc(Map<String, Object> doc) {
         JsonObject fields = new JsonObject();
-        for (var e : doc.entrySet()) fields.add(e.getKey(), toFsValue(e.getValue()));
+        // Skip null values — Firestore REST API rejects {"nullValue":null} with "type unset"
+        for (var e : doc.entrySet())
+            if (e.getValue() != null) fields.add(e.getKey(), toFsValue(e.getValue()));
         JsonObject wrapper = new JsonObject(); wrapper.add("fields", fields); return wrapper;
     }
 
