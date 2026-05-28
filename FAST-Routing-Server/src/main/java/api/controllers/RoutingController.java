@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public class RoutingController {
 
     static final FastRoutingEngineClient ENGINE_CLIENT =
-            new FastRoutingEngineClient("fast_routing_map.osm.pbf", "graph-cache-v2");
+            new FastRoutingEngineClient("export.osm", "graph-cache-v2");
 
     static final DataStore DS   = DataStore.getInstance();
     static final Gson      GSON = new Gson();
@@ -207,18 +207,6 @@ public class RoutingController {
                                            json.get("driverId").getAsString());
                 sendStatus(ex, 200);
 
-            } else if ("POST".equals(method) && "/force-location".equals(suffix)) {
-                JsonObject json = body(ex);
-                DS.forceLocation(json.get("ambulanceId").getAsString(),
-                                 json.get("lat").getAsDouble(),
-                                 json.get("lon").getAsDouble());
-                sendStatus(ex, 200);
-
-            } else if ("POST".equals(method) && "/unlock-location".equals(suffix)) {
-                JsonObject json = body(ex);
-                DS.clearLocationLock(json.get("ambulanceId").getAsString());
-                sendStatus(ex, 200);
-
             } else {
                 sendStatus(ex, 404);
             }
@@ -237,22 +225,7 @@ public class RoutingController {
             String suffix = path.length() > "/api/cases".length()
                           ? path.substring("/api/cases".length()) : "";
             String method = ex.getRequestMethod();
-            try {
-                handleInner(ex, method, suffix);
-            } catch (Exception e) {
-                System.err.println("[CaseHandler] Error (" + method + " /api/cases" + suffix + "): " + e);
-                try {
-                    cors(ex);
-                    String msg = e.getMessage() != null ? e.getMessage() : "Internal server error";
-                    byte[] b = GSON.toJson(Map.of("error", msg)).getBytes(java.nio.charset.StandardCharsets.UTF_8);
-                    ex.getResponseHeaders().set("Content-Type", "application/json");
-                    ex.sendResponseHeaders(500, b.length);
-                    try (OutputStream os = ex.getResponseBody()) { os.write(b); }
-                } catch (Exception ignored) {}
-            }
-        }
 
-        private void handleInner(HttpExchange ex, String method, String suffix) throws IOException {
             if ("POST".equals(method) && suffix.isEmpty()) {
                 // Create case
                 JsonObject json = body(ex);
@@ -282,9 +255,9 @@ public class RoutingController {
 
             } else if ("POST".equals(method) && "/assign".equals(suffix)) {
                 JsonObject json = body(ex);
-                boolean ok = DS.assignCase(json.get("caseId").getAsString(),
-                                           json.get("ambulanceId").getAsString());
-                sendStatus(ex, ok ? 200 : 404);
+                DS.assignCase(json.get("caseId").getAsString(),
+                              json.get("ambulanceId").getAsString());
+                sendStatus(ex, 200);
 
             } else if ("POST".equals(method) && "/complete".equals(suffix)) {
                 JsonObject json = body(ex);

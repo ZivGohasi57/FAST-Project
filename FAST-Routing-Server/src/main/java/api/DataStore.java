@@ -105,9 +105,7 @@ public class DataStore {
 
     private JsonObject toFirestoreDoc(Map<String, Object> doc) {
         JsonObject fields = new JsonObject();
-        // Skip null values — Firestore REST API rejects {"nullValue":null} with "type unset"
-        for (var e : doc.entrySet())
-            if (e.getValue() != null) fields.add(e.getKey(), toFsValue(e.getValue()));
+        for (var e : doc.entrySet()) fields.add(e.getKey(), toFsValue(e.getValue()));
         JsonObject wrapper = new JsonObject(); wrapper.add("fields", fields); return wrapper;
     }
 
@@ -144,13 +142,7 @@ public class DataStore {
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
     private void putDoc(String col, String id, Map<String, Object> doc) {
-        String body = gson.toJson(toFirestoreDoc(doc));
-        String resp = httpPatch(BASE_URL + "/" + col + "/" + id, body);
-        JsonObject obj = gson.fromJson(resp, JsonObject.class);
-        if (obj != null && obj.has("error")) {
-            throw new RuntimeException("Firestore write failed for " + col + "/" + id
-                    + ": " + obj.get("error"));
-        }
+        httpPatch(BASE_URL + "/" + col + "/" + id, gson.toJson(toFirestoreDoc(doc)));
         cache.remove(col);
     }
 
@@ -266,17 +258,16 @@ public class DataStore {
         return listCol("cases").stream().map(this::toCase).collect(Collectors.toList());
     }
 
-    public boolean assignCase(String caseId, String ambulanceId) {
+    public void assignCase(String caseId, String ambulanceId) {
         AmbulanceInfo a   = getAmbulance(ambulanceId);
         Map<String, Object> cd = getDoc("cases", caseId);
-        if (cd == null) return false;
+        if (cd == null) return;
         cd.put("status", "active");
         cd.put("assignedAmbulanceId", ambulanceId);
         cd.put("assignedDriverName",  a != null ? a.getDriverName() : "");
         cd.remove("id");
         putDoc("cases", caseId, cd);
         if (a != null) patchStatus("ambulances", ambulanceId, "busy");
-        return true;
     }
 
     public CaseRecord getActiveForAmbulance(String ambulanceId) {
@@ -396,37 +387,10 @@ public class DataStore {
     }
 
     public void updateLocation(String id, double lat, double lon) {
-        // Skip GPS update if a manager has locked this ambulance's location
-        boolean locked = listCol("ambulances").stream()
-                .filter(m -> id.equals(m.get("id")))
-                .findFirst()
-                .map(m -> Boolean.TRUE.equals(m.get("locationLocked")))
-                .orElse(false);
-        if (locked) return;
-
         String url = BASE_URL + "/ambulances/" + id
                 + "?updateMask.fieldPaths=lat&updateMask.fieldPaths=lon";
         Map<String, Object> partial = new HashMap<>();
         partial.put("lat", lat); partial.put("lon", lon);
-        httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
-        cache.remove("ambulances");
-    }
-
-    public void forceLocation(String id, double lat, double lon) {
-        String url = BASE_URL + "/ambulances/" + id
-                + "?updateMask.fieldPaths=lat&updateMask.fieldPaths=lon&updateMask.fieldPaths=locationLocked";
-        Map<String, Object> partial = new HashMap<>();
-        partial.put("lat", lat);
-        partial.put("lon", lon);
-        partial.put("locationLocked", true);
-        httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
-        cache.remove("ambulances");
-    }
-
-    public void clearLocationLock(String id) {
-        String url = BASE_URL + "/ambulances/" + id + "?updateMask.fieldPaths=locationLocked";
-        Map<String, Object> partial = new HashMap<>();
-        partial.put("locationLocked", false);
         httpPatch(url, gson.toJson(toFirestoreDoc(partial)));
         cache.remove("ambulances");
     }
@@ -436,11 +400,7 @@ public class DataStore {
     private void patchStatus(String col, String id, String status) {
         String url = BASE_URL + "/" + col + "/" + id + "?updateMask.fieldPaths=status";
         Map<String, Object> m = new HashMap<>(); m.put("status", status);
-        String resp = httpPatch(url, gson.toJson(toFirestoreDoc(m)));
-        JsonObject obj = gson.fromJson(resp, JsonObject.class);
-        if (obj != null && obj.has("error")) {
-            System.err.println("patchStatus failed for " + col + "/" + id + ": " + obj.get("error"));
-        }
+        httpPatch(url, gson.toJson(toFirestoreDoc(m)));
         cache.remove(col);
     }
 
@@ -469,9 +429,9 @@ public class DataStore {
 
     private Map<String, Object> ambulanceToMap(AmbulanceInfo a) {
         Map<String, Object> m = new HashMap<>();
-        m.put("driverId",      a.getDriverId());     m.put("driverName",     a.getDriverName());
-        m.put("lat",           a.getLat());           m.put("lon",            a.getLon());
-        m.put("status",        a.getStatus());        m.put("locationLocked", a.isLocationLocked());
+        m.put("driverId",   a.getDriverId());   m.put("driverName", a.getDriverName());
+        m.put("lat",        a.getLat());         m.put("lon",        a.getLon());
+        m.put("status",     a.getStatus());
         if (a.getAmbulanceNumber() != null) m.put("ambulanceNumber", a.getAmbulanceNumber());
         return m;
     }
@@ -480,8 +440,6 @@ public class DataStore {
         AmbulanceInfo a = new AmbulanceInfo(str(m,"id"), str(m,"driverId"), str(m,"driverName"),
                 dbl(m,"lat"), dbl(m,"lon"), str(m,"status"));
         a.setAmbulanceNumber((String) m.get("ambulanceNumber"));
-        Object ll = m.get("locationLocked");
-        a.setLocationLocked(ll instanceof Boolean b && b);
         return a;
     }
 

@@ -278,8 +278,6 @@ export default function DriverView() {
   const [error,          setError]          = useState(null);
   const [activeCase,     setActiveCase]     = useState(null);
   const [arrivedAtScene, setArrivedAtScene] = useState(false);
-  const [isLocForced,    setIsLocForced]    = useState(false);
-  const forcedLocationRef = useRef(null);
 
   const [startText, setStartText] = useState('');
   const [endText,   setEndText]   = useState('');
@@ -305,12 +303,9 @@ export default function DriverView() {
     const update = () => {
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(({ coords }) => {
-        // When manager has locked this ambulance's location, don't override startPos with GPS
-        if (!forcedLocationRef.current) {
-          const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
-          setStartPos(pos);
-          setStartText('📍 מיקום נוכחי');
-        }
+        const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
+        setStartPos(pos);
+        setStartText('📍 מיקום נוכחי');
         if (ambId) {
           axios.post(`${API_BASE}/api/ambulances/location`, {
             ambulanceId: ambId, lat: coords.latitude, lon: coords.longitude,
@@ -320,43 +315,6 @@ export default function DriverView() {
     };
     update();
     const iv = setInterval(update, 30000);
-    return () => clearInterval(iv);
-  }, []);
-
-  // Poll own ambulance to detect manager-forced location lock/unlock
-  useEffect(() => {
-    const auth  = JSON.parse(localStorage.getItem('fastAuth') || '{}');
-    const ambId = auth.ambulanceId;
-    if (!ambId) return;
-    const poll = () =>
-      axios.get(`${API_BASE}/api/ambulances`)
-        .then(r => {
-          const amb = r.data.find(a => a.id === ambId);
-          if (amb?.locationLocked) {
-            const forced = { lat: amb.lat, lon: amb.lon, label: 'מיקום ידני' };
-            const prev = forcedLocationRef.current;
-            if (!prev || prev.lat !== forced.lat || prev.lon !== forced.lon) {
-              forcedLocationRef.current = forced;
-              setIsLocForced(true);
-              setStartPos(forced);
-              setStartText('🔒 מיקום ידני');
-            }
-          } else if (forcedLocationRef.current) {
-            forcedLocationRef.current = null;
-            setIsLocForced(false);
-            // Restore GPS position
-            if (navigator.geolocation) {
-              navigator.geolocation.getCurrentPosition(({ coords }) => {
-                const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
-                setStartPos(pos);
-                setStartText('📍 מיקום נוכחי');
-              }, () => {});
-            }
-          }
-        })
-        .catch(() => {});
-    poll();
-    const iv = setInterval(poll, 5000);
     return () => clearInterval(iv);
   }, []);
 
@@ -496,24 +454,6 @@ export default function DriverView() {
       {/* ── Instruction banner (top) ── */}
       {instructions.length > 0 && (
         <InstructionBanner instructions={instructions} isEmergency={isEmergency} />
-      )}
-
-      {/* ── Forced location notice (only when not navigating, to avoid overlap) ── */}
-      {isLocForced && !instructions.length && (
-        <div style={{
-          position: 'absolute',
-          top: 'calc(env(safe-area-inset-top, 0px) + 16px)',
-          left: 16, right: 16,
-          background: 'rgba(122, 89, 0, 0.90)',
-          backdropFilter: 'blur(6px)',
-          borderRadius: 14, padding: '10px 16px',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-          zIndex: 590, direction: 'rtl',
-          display: 'flex', alignItems: 'center', gap: 10,
-        }}>
-          <span style={{ fontSize: 18, flexShrink: 0 }}>🔒</span>
-          <div style={{ color: 'white', fontSize: 13, fontWeight: 600 }}>מיקום הוגדר ידנית על-ידי המנהל</div>
-        </div>
       )}
 
       {/* ── Dispatcher notes banner (last update only) ── */}
