@@ -237,7 +237,22 @@ public class RoutingController {
             String suffix = path.length() > "/api/cases".length()
                           ? path.substring("/api/cases".length()) : "";
             String method = ex.getRequestMethod();
+            try {
+                handleInner(ex, method, suffix);
+            } catch (Exception e) {
+                System.err.println("[CaseHandler] Error (" + method + " /api/cases" + suffix + "): " + e);
+                try {
+                    cors(ex);
+                    String msg = e.getMessage() != null ? e.getMessage() : "Internal server error";
+                    byte[] b = GSON.toJson(Map.of("error", msg)).getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    ex.getResponseHeaders().set("Content-Type", "application/json");
+                    ex.sendResponseHeaders(500, b.length);
+                    try (OutputStream os = ex.getResponseBody()) { os.write(b); }
+                } catch (Exception ignored) {}
+            }
+        }
 
+        private void handleInner(HttpExchange ex, String method, String suffix) throws IOException {
             if ("POST".equals(method) && suffix.isEmpty()) {
                 // Create case
                 JsonObject json = body(ex);

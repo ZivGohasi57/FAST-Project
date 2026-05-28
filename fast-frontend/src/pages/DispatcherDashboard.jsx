@@ -132,7 +132,14 @@ export default function DispatcherDashboard() {
         description: form.description, patientDetails: form.patientDetails,
         urgency: form.urgency, notes: form.notes,
       });
-      await axios.post(`${API_BASE}/api/cases/assign`, { caseId: caseData.id, ambulanceId });
+      try {
+        await axios.post(`${API_BASE}/api/cases/assign`, { caseId: caseData.id, ambulanceId });
+      } catch (assignErr) {
+        const msg = assignErr.response?.data?.error;
+        setError(msg ? `שגיאה בהפניה: ${msg}` : 'שגיאה בהפניית האמבולנס');
+        setLoadingAssign(false);
+        return;
+      }
       setActiveCase({ ...caseData, assignedAmbulanceId: ambulanceId, assignedDriverName: driverName });
       const amb = ambulances.find(a => a.id === ambulanceId);
       if (amb) {
@@ -142,7 +149,10 @@ export default function DispatcherDashboard() {
         if (route?.path) setAssignedRoute(route.path.map(p => [p.lat, p.lon]));
       }
       if (isMobile) setShowMap(true);
-    } catch { setError('שגיאה בהפניית האמבולנס'); }
+    } catch (createErr) {
+      const msg = createErr.response?.data?.error;
+      setError(msg ? `שגיאה ביצירת קריאה: ${msg}` : 'שגיאה ביצירת הקריאה');
+    }
     setLoadingAssign(false);
   };
 
