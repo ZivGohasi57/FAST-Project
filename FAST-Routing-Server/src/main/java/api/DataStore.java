@@ -112,19 +112,26 @@ public class DataStore {
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 
-    /** Debug: test a Firestore write and return the raw status + response. */
-    public String debugWrite() {
-        String url = BASE_URL + "/debug/test-write";
+    /** Debug: test writes to multiple Firestore collections and return raw status+response. */
+    public Map<String, String> debugWrite() {
+        Map<String, String> results = new LinkedHashMap<>();
+        String[] paths = { "/debug/test-write", "/cases/debug-test-case", "/counters/debug-counter" };
         Map<String, Object> m = new HashMap<>();
         m.put("ts", System.currentTimeMillis());
-        try {
-            var req = HttpRequest.newBuilder().uri(URI.create(url))
-                    .header("Authorization", "Bearer " + token())
-                    .header("Content-Type", "application/json")
-                    .method("PATCH", HttpRequest.BodyPublishers.ofString(gson.toJson(toFirestoreDoc(m)))).build();
-            HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
-            return "status=" + r.statusCode() + " body=" + r.body().substring(0, Math.min(400, r.body().length()));
-        } catch (Exception e) { return "exception: " + e.getMessage(); }
+        String body = gson.toJson(toFirestoreDoc(m));
+        for (String path : paths) {
+            String url = BASE_URL + path;
+            try {
+                var req = HttpRequest.newBuilder().uri(URI.create(url))
+                        .header("Authorization", "Bearer " + token())
+                        .header("Content-Type", "application/json")
+                        .method("PATCH", HttpRequest.BodyPublishers.ofString(body)).build();
+                HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
+                String snippet = r.body().substring(0, Math.min(250, r.body().length())).replaceAll("\n", " ");
+                results.put(path, "HTTP " + r.statusCode() + ": " + snippet);
+            } catch (Exception e) { results.put(path, "EXCEPTION: " + e.getMessage()); }
+        }
+        return results;
     }
 
     // ── Firestore value conversion ────────────────────────────────────────────

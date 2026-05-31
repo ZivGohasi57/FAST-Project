@@ -455,7 +455,7 @@ public class RoutingController {
             Map<String, Object> result = new java.util.LinkedHashMap<>();
             result.put("projectId",   System.getenv("FIREBASE_PROJECT_ID"));
             result.put("hasCreds",    System.getenv("FIREBASE_SERVICE_ACCOUNT") != null);
-            result.put("writeTest",   DS.debugWrite());
+            result.put("writeTests",  DS.debugWrite());
             result.put("caseCount",   DS.allCases().size());
             result.put("ambCount",    DS.allAmbulances().size());
             sendJson(ex, result);
