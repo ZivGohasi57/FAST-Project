@@ -278,8 +278,10 @@ export default function DriverView() {
   const [error,          setError]          = useState(null);
   const [activeCase,     setActiveCase]     = useState(null);
   const [arrivedAtScene, setArrivedAtScene] = useState(false);
-  const [driverStatus,   setDriverStatus]   = useState('available'); // 'available' | 'offline'
-  const [statusSaving,   setStatusSaving]   = useState(false);
+  const [driverStatus,     setDriverStatus]     = useState('available');
+  const [statusSaving,     setStatusSaving]     = useState(false);
+  const [disconnectOpen,   setDisconnectOpen]   = useState(false);
+  const [disconnecting,    setDisconnecting]    = useState(false);
 
   const [startText, setStartText] = useState('');
   const [endText,   setEndText]   = useState('');
@@ -300,7 +302,7 @@ export default function DriverView() {
 
   // Load current ambulance status on mount
   useEffect(() => {
-    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     if (!ambId) return;
     axios.get(`${API_BASE}/api/ambulances`)
@@ -312,7 +314,7 @@ export default function DriverView() {
 
   // Auto-GPS: set start position from device and update server every 30s
   useEffect(() => {
-    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     const update = () => {
       if (!navigator.geolocation) return;
@@ -334,7 +336,7 @@ export default function DriverView() {
 
   // Poll active case for dispatcher updates every 5s
   useEffect(() => {
-    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     if (!ambId) return;
     const poll = () =>
@@ -433,7 +435,7 @@ export default function DriverView() {
   };
 
   const handleToggleStatus = async () => {
-    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     if (!ambId || activeCase) return;
     const next = driverStatus === 'available' ? 'offline' : 'available';
@@ -443,6 +445,21 @@ export default function DriverView() {
       setDriverStatus(next);
     } catch {}
     setStatusSaving(false);
+  };
+
+  const handleDisconnect = async () => {
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
+    const ambId = auth.ambulanceId;
+    if (!ambId) return;
+    setDisconnecting(true);
+    try {
+      await axios.post(`${API_BASE}/api/ambulances/disconnect`, { ambulanceId: ambId });
+      // Clear ambulanceId from auth so the poll stops
+      const updated = { ...auth, ambulanceId: null };
+      sessionStorage.setItem('fastAuth', JSON.stringify(updated));
+      localStorage.setItem('fastAuth', JSON.stringify(updated));
+      window.location.href = '/pick-ambulance';
+    } catch { setDisconnecting(false); }
   };
 
   const toggleEmergency = () => {
@@ -670,6 +687,42 @@ export default function DriverView() {
         </div>
       )}
 
+      {/* ── Disconnect confirmation overlay ── */}
+      {disconnectOpen && (
+        <div style={{
+          position: 'absolute', inset: 0,
+          background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)',
+          zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 22, padding: '28px 26px 22px',
+            maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)',
+            direction: 'rtl', animation: 'slideUp 0.3s ease',
+          }}>
+            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>🔌</div>
+            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>
+              ניתוק מהאמבולנס
+            </div>
+            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>
+              תנותק מהאמבולנס ויופנה לבחירת אמבולנס מחדש
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDisconnectOpen(false)} style={{
+                flex: 1, padding: '13px', background: '#f5f7fa',
+                border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer',
+                fontWeight: 600, fontSize: 14, color: '#555',
+              }}>לא</button>
+              <button onClick={handleDisconnect} disabled={disconnecting} style={{
+                flex: 1, padding: '13px',
+                background: 'linear-gradient(135deg,#1a1a2e,#2d3561)',
+                border: 'none', borderRadius: 14, cursor: disconnecting ? 'wait' : 'pointer',
+                fontWeight: 700, fontSize: 14, color: 'white',
+              }}>{disconnecting ? '...' : 'כן, נתק'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Bottom sheet ── */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -785,6 +838,19 @@ export default function DriverView() {
 
         {/* ── BOTTOM BAR ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
+          {/* Disconnect button — small, only when no active case */}
+          {!activeCase && (
+            <button
+              onClick={() => setDisconnectOpen(true)}
+              title="ניתוק מהאמבולנס"
+              style={{
+                width: 40, height: 40, flexShrink: 0,
+                background: '#f5f7fa', border: '1px solid #e8eaed',
+                borderRadius: 12, cursor: 'pointer', fontSize: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >🔌</button>
+          )}
           <button
             onClick={() => setSearchOpen(o => !o)}
             style={{

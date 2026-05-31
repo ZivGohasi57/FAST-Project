@@ -10,7 +10,7 @@ export default function AmbulanceSelectPage() {
   const [error,      setError]      = useState('');
   const navigate = useNavigate();
 
-  const auth = (() => { try { return JSON.parse(sessionStorage.getItem('fastAuth') || '{}'); } catch { return {}; } })();
+  const auth = (() => { try { const r = sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth'); return r ? JSON.parse(r) : {}; } catch { return {}; } })();
 
   useEffect(() => {
     if (!auth.userId || auth.role !== 'driver') { navigate('/'); return; }
@@ -146,7 +146,7 @@ export default function AmbulanceSelectPage() {
 
         {/* Logout */}
         <button
-          onClick={() => { sessionStorage.removeItem('fastAuth'); navigate('/'); }}
+          onClick={() => { sessionStorage.removeItem('fastAuth'); localStorage.removeItem('fastAuth'); navigate('/'); }}
           style={{
             marginTop: 28, width: '100%', padding: '11px',
             background: 'transparent', border: '1px solid rgba(255,255,255,0.18)',

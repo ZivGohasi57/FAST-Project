@@ -88,12 +88,17 @@ export default function ManagerSuite() {
   const [expandedCase, setExpandedCase] = useState(null);
   const [eventFilter,  setEventFilter]  = useState('all');
 
-  const [zones,       setZones]       = useState([]);
-  const [drawMode,    setDrawMode]    = useState(false);
-  const [corner1,     setCorner1]     = useState(null);
-  const [pendingZone, setPendingZone] = useState(null);
-  const [zoneName,    setZoneName]    = useState('');
-  const [zoneError,   setZoneError]   = useState('');
+  const [zones,          setZones]          = useState([]);
+  const [drawMode,       setDrawMode]       = useState(false);
+  const [corner1,        setCorner1]        = useState(null);
+  const [pendingZone,    setPendingZone]    = useState(null);
+  const [zoneName,       setZoneName]       = useState('');
+  const [zoneType,       setZoneType]       = useState('permanent');
+  const [zoneDailyStart, setZoneDailyStart] = useState('07:00');
+  const [zoneDailyEnd,   setZoneDailyEnd]   = useState('09:00');
+  const [zoneOnceStart,  setZoneOnceStart]  = useState('');
+  const [zoneOnceEnd,    setZoneOnceEnd]    = useState('');
+  const [zoneError,      setZoneError]      = useState('');
 
   useEffect(() => {
     if (tab === 'users')       fetchUsers();
@@ -174,14 +179,19 @@ export default function ManagerSuite() {
 
   const handleSaveZone = async () => {
     if (!zoneName.trim()) { setZoneError('יש לתת שם לאזור'); return; }
+    if (zoneType === 'daily' && (!zoneDailyStart || !zoneDailyEnd)) { setZoneError('יש להזין שעות'); return; }
+    if (zoneType === 'once'  && (!zoneOnceStart  || !zoneOnceEnd))  { setZoneError('יש להזין תאריכים'); return; }
     setZoneError('');
+    const payload = { name: zoneName.trim(), ...pendingZone, type: zoneType };
+    if (zoneType === 'daily') { payload.dailyStart = zoneDailyStart; payload.dailyEnd = zoneDailyEnd; }
+    if (zoneType === 'once')  { payload.onceStart = new Date(zoneOnceStart).getTime(); payload.onceEnd = new Date(zoneOnceEnd).getTime(); }
     try {
-      await axios.post(`${API_BASE}/api/nogozones`, { name: zoneName.trim(), ...pendingZone });
-      setPendingZone(null); setZoneName(''); fetchZones();
+      await axios.post(`${API_BASE}/api/nogozones`, payload);
+      setPendingZone(null); setZoneName(''); setZoneType('permanent'); fetchZones();
     } catch { setZoneError('שגיאה בשמירת האזור'); }
   };
 
-  const cancelDraw = () => { setDrawMode(false); setCorner1(null); setPendingZone(null); setZoneName(''); setZoneError(''); };
+  const cancelDraw = () => { setDrawMode(false); setCorner1(null); setPendingZone(null); setZoneName(''); setZoneType('permanent'); setZoneError(''); };
   const handleDeleteZone = async (id) => { await axios.delete(`${API_BASE}/api/nogozones?id=${id}`).catch(() => {}); fetchZones(); };
 
   const filteredCases = cases.filter(c => eventFilter === 'all' || c.status === eventFilter);
@@ -456,7 +466,12 @@ export default function ManagerSuite() {
               }}>
                 <div style={s.cardTitle}>אזורי איסור</div>
                 <div style={{ fontSize: 12, color: '#7a5900', lineHeight: 1.6, background: '#fff8e1', padding: '9px 11px', borderRadius: 10, border: '1px solid #ffe082' }}>
-                  באזורים אלו, גם בחירום האמבולנס מחויב לנסוע לפי חוקי התנועה הרגילים.
+                  באזורים אלו האמבולנס מחויב לנסוע לפי חוקי התנועה הרגילים, גם בחירום.
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11 }}>
+                  <div><span style={{ color: '#ff3b30', fontWeight: 700 }}>🔴 קבוע</span> — תמיד חסום</div>
+                  <div><span style={{ color: '#ff9500', fontWeight: 700 }}>🟠 יומי</span> — חסום בשעות מסוימות</div>
+                  <div><span style={{ color: '#007aff', fontWeight: 700 }}>🔵 חד-פעמי</span> — אירוע בתאריך ספציפי</div>
                 </div>
 
                 {!drawMode && !pendingZone && (
@@ -476,10 +491,59 @@ export default function ManagerSuite() {
 
                 {pendingZone && (
                   <div style={{ ...s.card, padding: 14 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 8 }}>✅ תן שם לאזור</div>
-                    {zoneError && <div style={{ color: '#c0392b', fontSize: 12, marginBottom: 6 }}>⚠️ {zoneError}</div>}
-                    <input value={zoneName} onChange={e => setZoneName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSaveZone()}
-                      placeholder='לדוג׳: מרכז העיר' style={{ ...s.input, marginBottom: 10 }} autoFocus />
+                    <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>✅ הגדר אזור חדש</div>
+                    {zoneError && <div style={{ color: '#c0392b', fontSize: 12, marginBottom: 8 }}>⚠️ {zoneError}</div>}
+
+                    {/* Name */}
+                    <input value={zoneName} onChange={e => setZoneName(e.target.value)}
+                      placeholder='שם האזור (לדוג׳: מרכז העיר)' style={{ ...s.input, marginBottom: 10 }} autoFocus />
+
+                    {/* Zone type */}
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 6 }}>סוג הגבלה</label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {[
+                          { val: 'permanent', label: '🔴 קבוע — תמיד חסום בחירום' },
+                          { val: 'daily',     label: '🟠 יומי — חסום בשעות מסוימות' },
+                          { val: 'once',      label: '🔵 חד-פעמי — אירוע בתאריך ספציפי' },
+                        ].map(({ val, label }) => (
+                          <label key={val} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: zoneType === val ? 700 : 400 }}>
+                            <input type="radio" name="zoneType" value={val} checked={zoneType === val} onChange={() => setZoneType(val)} />
+                            {label}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Daily schedule */}
+                    {zoneType === 'daily' && (
+                      <div style={{ background: '#fff3e0', border: '1px solid #ff9500', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#e65100', marginBottom: 8 }}>שעות חסימה יומיות</div>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input type="time" value={zoneDailyStart} onChange={e => setZoneDailyStart(e.target.value)} style={{ flex: 1, padding: '7px 8px', border: '1px solid #e8eaed', borderRadius: 7, fontSize: 13, fontFamily: 'inherit' }} />
+                          <span style={{ color: '#888', fontSize: 12 }}>עד</span>
+                          <input type="time" value={zoneDailyEnd} onChange={e => setZoneDailyEnd(e.target.value)} style={{ flex: 1, padding: '7px 8px', border: '1px solid #e8eaed', borderRadius: 7, fontSize: 13, fontFamily: 'inherit' }} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* One-time schedule */}
+                    {zoneType === 'once' && (
+                      <div style={{ background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#1565c0', marginBottom: 8 }}>תקופת האירוע</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: '#555', width: 40, flexShrink: 0 }}>מ-</span>
+                            <input type="datetime-local" value={zoneOnceStart} onChange={e => setZoneOnceStart(e.target.value)} style={{ flex: 1, padding: '7px 8px', border: '1px solid #e8eaed', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }} />
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 11, color: '#555', width: 40, flexShrink: 0 }}>עד-</span>
+                            <input type="datetime-local" value={zoneOnceEnd} onChange={e => setZoneOnceEnd(e.target.value)} style={{ flex: 1, padding: '7px 8px', border: '1px solid #e8eaed', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }} />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={handleSaveZone} style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 9, background: '#ff3b30', color: 'white', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>💾 שמור</button>
                       <button onClick={cancelDraw} style={{ flex: 1, padding: '9px 0', border: 'none', borderRadius: 9, background: '#e0e0e0', color: '#555', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>ביטול</button>
@@ -491,16 +555,30 @@ export default function ManagerSuite() {
                   <div style={{ color: '#ccc', textAlign: 'center', fontSize: 13, padding: 16 }}>אין אזורי איסור</div>
                 )}
 
-                {zones.map(z => (
-                  <div key={z.id} style={{ background: 'white', border: '1px solid #ffd5d0', borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 18 }}>🚫</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{z.name}</div>
-                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{z.minLat.toFixed(4)}° – {z.maxLat.toFixed(4)}°</div>
+                {zones.map(z => {
+                  const typeColor = z.type === 'daily' ? { bg: '#fff3e0', border: '#ff9500', icon: '🟠' }
+                                  : z.type === 'once'  ? { bg: '#e3f2fd', border: '#90caf9', icon: '🔵' }
+                                  :                      { bg: '#fff0ef', border: '#ffd5d0', icon: '🔴' };
+                  const active = z.isCurrentlyActive !== undefined ? z.isCurrentlyActive : true; // JS objects won't have this method
+                  return (
+                    <div key={z.id} style={{ background: typeColor.bg, border: `1px solid ${typeColor.border}`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                      <span style={{ fontSize: 16, marginTop: 2 }}>{typeColor.icon}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 600, fontSize: 14 }}>{z.name}</div>
+                        {z.type === 'daily' && z.dailyStart && (
+                          <div style={{ fontSize: 11, color: '#e65100', marginTop: 2 }}>⏰ {z.dailyStart} – {z.dailyEnd} בכל יום</div>
+                        )}
+                        {z.type === 'once' && z.onceStart && (
+                          <div style={{ fontSize: 11, color: '#1565c0', marginTop: 2 }}>
+                            📅 {new Date(z.onceStart).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })} – {new Date(z.onceEnd).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+                          </div>
+                        )}
+                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{(z.minLat||0).toFixed(4)}° – {(z.maxLat||0).toFixed(4)}°</div>
+                      </div>
+                      <button onClick={() => handleDeleteZone(z.id)} style={s.deleteBtn}>מחק</button>
                     </div>
-                    <button onClick={() => handleDeleteZone(z.id)} style={s.deleteBtn}>מחק</button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Map */}
@@ -508,11 +586,18 @@ export default function ManagerSuite() {
                 <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: (drawMode || corner1) ? 'crosshair' : 'grab' }}>
                   <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />
                   <ZoneDrawer active={drawMode || !!corner1} onPoint={handleMapPoint} />
-                  {zones.map(z => (
-                    <Rectangle key={z.id} bounds={[[z.minLat, z.minLon], [z.maxLat, z.maxLon]]} color="#ff3b30" weight={2} fillOpacity={0.18}>
-                      <Popup><b>🚫 {z.name}</b></Popup>
-                    </Rectangle>
-                  ))}
+                  {zones.map(z => {
+                    const c = z.type === 'daily' ? '#ff9500' : z.type === 'once' ? '#007aff' : '#ff3b30';
+                    return (
+                      <Rectangle key={z.id} bounds={[[z.minLat, z.minLon], [z.maxLat, z.maxLon]]} color={c} weight={2} fillOpacity={0.18}>
+                        <Popup>
+                          <b>🚫 {z.name}</b>
+                          {z.type === 'daily' && <div style={{ fontSize: 11 }}>⏰ {z.dailyStart}–{z.dailyEnd}</div>}
+                          {z.type === 'once'  && z.onceStart && <div style={{ fontSize: 11 }}>📅 {new Date(z.onceStart).toLocaleDateString('he-IL')}</div>}
+                        </Popup>
+                      </Rectangle>
+                    );
+                  })}
                   {pendingZone && <Rectangle bounds={[[pendingZone.minLat, pendingZone.minLon], [pendingZone.maxLat, pendingZone.maxLon]]} color="#ff9500" weight={2} fillOpacity={0.2} dashArray="6 4" />}
                   {corner1 && <Marker position={corner1} icon={cornerIcon} />}
                 </MapContainer>

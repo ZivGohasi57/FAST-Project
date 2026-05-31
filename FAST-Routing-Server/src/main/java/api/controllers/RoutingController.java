@@ -229,6 +229,11 @@ public class RoutingController {
                     sendStatus(ex, 400);
                 }
 
+            } else if ("POST".equals(method) && "/disconnect".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.disconnectDriver(json.get("ambulanceId").getAsString());
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }
@@ -332,7 +337,8 @@ public class RoutingController {
 
             List<Map<String, Object>> results = new ArrayList<>();
             for (AmbulanceInfo amb : DS.allAmbulances()) {
-                if ("offline".equals(amb.getStatus())) continue;
+                if (!"available".equals(amb.getStatus())) continue;
+                if (amb.getDriverId() == null || amb.getDriverId().isEmpty()) continue;
 
                 RouteRequest routineReq   = new RouteRequest(amb.getLat(), amb.getLon(), endLat, endLon, false);
                 RouteRequest emergencyReq = new RouteRequest(amb.getLat(), amb.getLon(), endLat, endLon, true);
@@ -444,7 +450,7 @@ public class RoutingController {
             String method = ex.getRequestMethod();
 
             if ("GET".equals(method)) {
-                sendJson(ex, DS.allNoGoZones());
+                sendJson(ex, DS.allNoGoZonesRaw()); // all zones for manager UI
 
             } else if ("POST".equals(method)) {
                 JsonObject json = body(ex);
@@ -454,6 +460,11 @@ public class RoutingController {
                 z.setMaxLat( json.get("maxLat").getAsDouble());
                 z.setMinLon( json.get("minLon").getAsDouble());
                 z.setMaxLon( json.get("maxLon").getAsDouble());
+                if (json.has("type"))       z.setType(json.get("type").getAsString());
+                if (json.has("dailyStart")) z.setDailyStart(json.get("dailyStart").getAsString());
+                if (json.has("dailyEnd"))   z.setDailyEnd(json.get("dailyEnd").getAsString());
+                if (json.has("onceStart"))  z.setOnceStart(json.get("onceStart").getAsLong());
+                if (json.has("onceEnd"))    z.setOnceEnd(json.get("onceEnd").getAsLong());
                 sendJson(ex, DS.addNoGoZone(z));
 
             } else if ("DELETE".equals(method)) {

@@ -335,7 +335,16 @@ public class DataStore {
         return z;
     }
 
+    /** All zones that are currently active — used by routing engine. */
     public Collection<NoGoZone> allNoGoZones() {
+        return listCol("nogozones").stream()
+                .map(this::toZone)
+                .filter(NoGoZone::isCurrentlyActive)
+                .collect(Collectors.toList());
+    }
+
+    /** All zones regardless of schedule — used by manager UI. */
+    public Collection<NoGoZone> allNoGoZonesRaw() {
         return listCol("nogozones").stream().map(this::toZone).collect(Collectors.toList());
     }
 
@@ -388,6 +397,25 @@ public class DataStore {
 
     public void setAmbulanceStatus(String id, String status) {
         patchStatus("ambulances", id, status);
+    }
+
+    public void disconnectDriver(String ambulanceId) {
+        Map<String, Object> ambDoc = getDoc("ambulances", ambulanceId);
+        if (ambDoc == null) return;
+        String driverId = (String) ambDoc.get("driverId");
+        ambDoc.put("driverId",   "");
+        ambDoc.put("driverName", "");
+        ambDoc.put("status",     "offline");
+        ambDoc.remove("id");
+        putDoc("ambulances", ambulanceId, ambDoc);
+        // Clear ambulanceId from driver's Firestore profile
+        if (driverId != null && !driverId.isEmpty()) {
+            String url = BASE_URL + "/users/" + driverId + "?updateMask.fieldPaths=ambulanceId";
+            Map<String, Object> m = new HashMap<>();
+            m.put("ambulanceId", (Object) null);
+            httpPatch(url, gson.toJson(toFirestoreDoc(m)));
+            cache.remove("users");
+        }
     }
 
     public void updateLocation(String id, double lat, double lon) {
@@ -499,17 +527,25 @@ public class DataStore {
 
     private Map<String, Object> zoneToMap(NoGoZone z) {
         Map<String, Object> m = new HashMap<>();
-        m.put("name",   z.getName());  m.put("minLat", z.getMinLat());
-        m.put("maxLat", z.getMaxLat()); m.put("minLon", z.getMinLon());
-        m.put("maxLon", z.getMaxLon());
+        m.put("name",   z.getName());   m.put("type",   z.getType() != null ? z.getType() : "permanent");
+        m.put("minLat", z.getMinLat()); m.put("maxLat", z.getMaxLat());
+        m.put("minLon", z.getMinLon()); m.put("maxLon", z.getMaxLon());
+        if (z.getDailyStart() != null) m.put("dailyStart", z.getDailyStart());
+        if (z.getDailyEnd()   != null) m.put("dailyEnd",   z.getDailyEnd());
+        if (z.getOnceStart()  != 0)    m.put("onceStart",  z.getOnceStart());
+        if (z.getOnceEnd()    != 0)    m.put("onceEnd",    z.getOnceEnd());
         return m;
     }
 
     private NoGoZone toZone(Map<String, Object> m) {
         NoGoZone z = new NoGoZone();
-        z.setId(str(m,"id")); z.setName(str(m,"name"));
+        z.setId(str(m,"id")); z.setName(str(m,"name")); z.setType(str(m,"type","permanent"));
         z.setMinLat(dbl(m,"minLat")); z.setMaxLat(dbl(m,"maxLat"));
         z.setMinLon(dbl(m,"minLon")); z.setMaxLon(dbl(m,"maxLon"));
+        Object ds = m.get("dailyStart"); if (ds instanceof String) z.setDailyStart((String) ds);
+        Object de = m.get("dailyEnd");   if (de instanceof String) z.setDailyEnd((String) de);
+        Object os = m.get("onceStart");  if (os instanceof Number) z.setOnceStart(((Number) os).longValue());
+        Object oe = m.get("onceEnd");    if (oe instanceof Number) z.setOnceEnd(((Number) oe).longValue());
         return z;
     }
 
