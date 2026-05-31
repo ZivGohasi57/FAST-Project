@@ -15,4 +15,8 @@ public enum CongestionLevel {
     public double getWeightMultiplier() {
         return 1.0 / speedFactor;
     }
+
+    public double getSpeedFactor() {
+        return speedFactor;
+    }
 }

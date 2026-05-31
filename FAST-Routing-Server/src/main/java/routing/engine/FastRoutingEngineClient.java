@@ -3,12 +3,18 @@ package routing.engine;
 import com.graphhopper.GHRequest;
 import com.graphhopper.GHResponse;
 import com.graphhopper.GraphHopperConfig;
+import routing.traffic.CongestionLevel;
 import routing.traffic.FASTGraphHopper;
 import routing.traffic.TrafficData;
 import com.graphhopper.ResponsePath;
 import com.graphhopper.config.Profile;
 import com.graphhopper.json.Statement;
+import com.graphhopper.routing.ev.DecimalEncodedValue;
+import com.graphhopper.routing.ev.VehicleSpeed;
+import com.graphhopper.storage.BaseGraph;
 import com.graphhopper.util.CustomModel;
+import com.graphhopper.util.EdgeIteratorState;
+import com.graphhopper.util.FetchMode;
 import com.graphhopper.util.Instruction;
 import com.graphhopper.util.InstructionList;
 import com.graphhopper.util.RoundaboutInstruction;
@@ -25,6 +31,7 @@ import routing.TrafficSignalIndex;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -81,6 +88,44 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
 
     public TrafficData getTrafficData() {
         return hopper.getTrafficData();
+    }
+
+    /**
+     * Returns all currently congested road segments with their coordinates, congestion level,
+     * and estimated average speed. Used by the /api/traffic endpoint for map overlay.
+     */
+    public List<Map<String, Object>> getTrafficOverlay() {
+        BaseGraph graph = hopper.getBaseGraph();
+        Map<Integer, CongestionLevel> congestion = hopper.getTrafficData().getAllCongestion();
+        DecimalEncodedValue speedEnc =
+                hopper.getEncodingManager().getDecimalEncodedValue(VehicleSpeed.key("car"));
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<Integer, CongestionLevel> entry : congestion.entrySet()) {
+            int edgeId = entry.getKey();
+            CongestionLevel level = entry.getValue();
+
+            EdgeIteratorState edge = graph.getEdgeIteratorState(edgeId, Integer.MIN_VALUE);
+            if (edge == null) continue;
+
+            PointList pts = edge.fetchWayGeometry(FetchMode.ALL);
+            if (pts.isEmpty()) continue;
+
+            List<double[]> points = new ArrayList<>(pts.size());
+            for (int i = 0; i < pts.size(); i++) {
+                points.add(new double[]{pts.getLat(i), pts.getLon(i)});
+            }
+
+            double baseSpeedKmh = edge.get(speedEnc);
+            int avgSpeedKmh = (int) Math.round(baseSpeedKmh * level.getSpeedFactor());
+
+            Map<String, Object> seg = new LinkedHashMap<>();
+            seg.put("points",      points);
+            seg.put("level",       level.name());
+            seg.put("avgSpeedKmh", avgSpeedKmh);
+            result.add(seg);
+        }
+        return result;
     }
 
     // -------------------------------------------------------------------------

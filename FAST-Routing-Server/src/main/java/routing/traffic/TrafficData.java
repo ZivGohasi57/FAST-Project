@@ -1,5 +1,7 @@
 package routing.traffic;
 
+import java.util.Collections;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TrafficData {
@@ -25,5 +27,9 @@ public class TrafficData {
 
     public int activeJamCount() {
         return congestion.size();
+    }
+
+    public Map<Integer, CongestionLevel> getAllCongestion() {
+        return Collections.unmodifiableMap(congestion);
     }
 }
