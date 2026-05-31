@@ -278,7 +278,11 @@ public class RoutingController {
                 Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
                 String ambulanceId = params.get("ambulanceId");
                 CaseRecord c = ambulanceId != null ? DS.getActiveForAmbulance(ambulanceId) : null;
-                sendJson(ex, c); // null serializes to "null" in JSON
+                sendJson(ex, c);
+
+            } else if ("GET".equals(method) && suffix.length() > 1 && !"/active".equals(suffix)) {
+                // Get a single case by ID  e.g. /api/cases/case-21
+                sendJson(ex, DS.getCaseById(suffix.substring(1)));
 
             } else if ("POST".equals(method) && "/assign".equals(suffix)) {
                 JsonObject json = body(ex);

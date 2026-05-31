@@ -9,6 +9,7 @@ public class AmbulanceInfo {
     private String status;          // "available" | "busy" | "offline"
     private String  ambulanceNumber;
     private boolean locationLocked;
+    private String  activeCaseId;
 
     public AmbulanceInfo() {}
     public AmbulanceInfo(String id, String driverId, String driverName,
@@ -32,4 +33,6 @@ public class AmbulanceInfo {
     public void    setAmbulanceNumber(String v)   { ambulanceNumber = v; }
     public boolean isLocationLocked()             { return locationLocked; }
     public void    setLocationLocked(boolean v)   { locationLocked = v; }
+    public String  getActiveCaseId()              { return activeCaseId; }
+    public void    setActiveCaseId(String v)      { activeCaseId = v; }
 }

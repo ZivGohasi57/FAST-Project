@@ -267,7 +267,13 @@ public class DataStore {
         cd.put("assignedDriverName",  a != null ? a.getDriverName() : "");
         cd.remove("id");
         putDoc("cases", caseId, cd);
-        if (a != null) patchStatus("ambulances", ambulanceId, "busy");
+        // Set status=busy AND activeCaseId so the driver's ambulance poll can deliver the case
+        String url = BASE_URL + "/ambulances/" + ambulanceId
+                + "?updateMask.fieldPaths=status&updateMask.fieldPaths=activeCaseId";
+        Map<String, Object> ap = new HashMap<>();
+        ap.put("status", "busy"); ap.put("activeCaseId", caseId);
+        httpPatch(url, gson.toJson(toFirestoreDoc(ap)));
+        cache.remove("ambulances");
     }
 
     public CaseRecord getActiveForAmbulance(String ambulanceId) {
@@ -307,7 +313,14 @@ public class DataStore {
         String ambId = (String) doc.get("assignedAmbulanceId");
         doc.put("status", "completed"); doc.remove("id");
         putDoc("cases", caseId, doc);
-        if (ambId != null) patchStatus("ambulances", ambId, "available");
+        if (ambId != null) {
+            String url = BASE_URL + "/ambulances/" + ambId
+                    + "?updateMask.fieldPaths=status&updateMask.fieldPaths=activeCaseId";
+            Map<String, Object> ap = new HashMap<>();
+            ap.put("status", "available"); ap.put("activeCaseId", (Object) null);
+            httpPatch(url, gson.toJson(toFirestoreDoc(ap)));
+            cache.remove("ambulances");
+        }
     }
 
     public void requestCancel(String caseId) {
@@ -324,7 +337,14 @@ public class DataStore {
         String ambId = (String) doc.get("assignedAmbulanceId");
         doc.put("status", "cancelled"); doc.remove("id");
         putDoc("cases", caseId, doc);
-        if (ambId != null) patchStatus("ambulances", ambId, "available");
+        if (ambId != null) {
+            String url = BASE_URL + "/ambulances/" + ambId
+                    + "?updateMask.fieldPaths=status&updateMask.fieldPaths=activeCaseId";
+            Map<String, Object> ap = new HashMap<>();
+            ap.put("status", "available"); ap.put("activeCaseId", (Object) null);
+            httpPatch(url, gson.toJson(toFirestoreDoc(ap)));
+            cache.remove("ambulances");
+        }
     }
 
     // ── No-Go Zones ───────────────────────────────────────────────────────────
@@ -485,6 +505,7 @@ public class DataStore {
         m.put("lat",            a.getLat());           m.put("lon",        a.getLon());
         m.put("status",         a.getStatus());
         m.put("locationLocked", a.isLocationLocked());
+        m.put("activeCaseId",   a.getActiveCaseId());
         if (a.getAmbulanceNumber() != null) m.put("ambulanceNumber", a.getAmbulanceNumber());
         return m;
     }
@@ -494,6 +515,7 @@ public class DataStore {
                 dbl(m,"lat"), dbl(m,"lon"), str(m,"status"));
         a.setAmbulanceNumber((String) m.get("ambulanceNumber"));
         a.setLocationLocked(Boolean.TRUE.equals(m.get("locationLocked")));
+        a.setActiveCaseId((String) m.get("activeCaseId"));
         return a;
     }
 

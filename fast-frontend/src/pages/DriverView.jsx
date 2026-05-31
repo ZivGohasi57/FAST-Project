@@ -282,6 +282,9 @@ export default function DriverView() {
   const [statusSaving,     setStatusSaving]     = useState(false);
   const [disconnectOpen,   setDisconnectOpen]   = useState(false);
   const [disconnecting,    setDisconnecting]    = useState(false);
+  const [ambulanceId]  = useState(() => {
+    try { const a = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}'); return a.ambulanceId || null; } catch { return null; }
+  });
 
   const [startText, setStartText] = useState('');
   const [endText,   setEndText]   = useState('');
@@ -290,9 +293,10 @@ export default function DriverView() {
 
   const [locationLocked, setLocationLocked] = useState(false);
 
-  const endInputRef       = useRef(null);
-  const prevCaseIdRef     = useRef(null);
-  const locationLockedRef = useRef(false);
+  const endInputRef          = useRef(null);
+  const prevCaseIdRef        = useRef(null);
+  const locationLockedRef    = useRef(false);
+  const prevActiveCaseIdRef  = useRef(null); // tracks activeCaseId seen on ambulance doc
   const [newCaseAlert,  setNewCaseAlert]  = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
 
@@ -303,19 +307,33 @@ export default function DriverView() {
       .catch(() => {});
   }, []);
 
-  // Poll own ambulance every 5s to sync position when manager has locked it
+  // Poll own ambulance every 3s — handles location-lock sync AND case delivery
   useEffect(() => {
     const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     if (!ambId) return;
+
+    const resetNav = () => {
+      setActiveCase(null);
+      prevCaseIdRef.current = null;
+      setRouteCoords([]);
+      setRouteInfo(null);
+      setInstructions([]);
+      setEndPos(null);
+      setEndText('');
+      setSearchOpen(true);
+    };
+
     const poll = () => {
       axios.get(`${API_BASE}/api/ambulances`)
         .then(r => {
           const amb = r.data.find(a => a.id === ambId);
           if (!amb) return;
-          // Update driver status (unless on active case)
+
+          // Sync status
           if (amb.status !== 'busy') setDriverStatus(amb.status);
-          // Sync manager-locked position to driver's map
+
+          // Sync manager-locked position
           const locked = !!amb.locationLocked;
           locationLockedRef.current = locked;
           setLocationLocked(locked);
@@ -323,10 +341,30 @@ export default function DriverView() {
             setStartPos({ lat: amb.lat, lon: amb.lon, label: '📍 מיקום נעול' });
             setStartText('📍 מיקום (נעול ע"י מנהל)');
           }
-        }).catch(() => {});
+
+          // PRIMARY case delivery via activeCaseId embedded in ambulance doc
+          const caseId = amb.activeCaseId || null;
+          if (caseId && caseId !== prevActiveCaseIdRef.current) {
+            // New case arrived — fetch details and deliver to driver
+            prevActiveCaseIdRef.current = caseId;
+            axios.get(`${API_BASE}/api/cases/${caseId}`)
+              .then(cr => {
+                const c = cr.data;
+                if (c && c.status !== 'cancelled' && c.status !== 'completed') {
+                  setActiveCase(c);
+                }
+              })
+              .catch(() => {});
+          } else if (!caseId && prevActiveCaseIdRef.current !== null) {
+            // Case was cleared (cancelled/completed)
+            prevActiveCaseIdRef.current = null;
+            resetNav();
+          }
+        })
+        .catch(() => {});
     };
     poll();
-    const iv = setInterval(poll, 5000);
+    const iv = setInterval(poll, 3000);
     return () => clearInterval(iv);
   }, []);
 
@@ -381,7 +419,7 @@ export default function DriverView() {
             setActiveCase(c);
           }
         })
-        .catch(() => {});
+        .catch((err) => { console.warn('[FAST] case poll error:', err?.message); });
     poll();
     const iv = setInterval(poll, 3000);
     return () => clearInterval(iv);
@@ -755,6 +793,13 @@ export default function DriverView() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e0e0e0' }} />
         </div>
+
+        {/* ── AMBULANCE ID INDICATOR ── */}
+        {ambulanceId && (
+          <div style={{ textAlign: 'center', fontSize: 10, color: '#bbb', marginBottom: 2, letterSpacing: 0.3 }}>
+            🚑 {ambulanceId.replace('amb-', 'אמב. ')}
+          </div>
+        )}
 
         {/* ── LOCATION LOCK NOTICE ── */}
         {locationLocked && (
