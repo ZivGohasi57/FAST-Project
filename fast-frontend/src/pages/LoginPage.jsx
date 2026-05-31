@@ -109,9 +109,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ marginTop: 20, textAlign: 'center', color: '#bbb', fontSize: 11 }}>
-          driver1 / dispatcher1 / manager1 — סיסמה: 123
-        </div>
       </div>
     </div>
   );

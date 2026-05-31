@@ -10,8 +10,11 @@ import routing.strategies.*;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.*;
 import java.util.stream.Collectors;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 
 public class RoutingController {
 
@@ -36,6 +39,30 @@ public class RoutingController {
         server.setExecutor(null);
         server.start();
         System.out.println("FAST API Server is running on port " + port);
+    }
+
+    static String hashPassword(String plain) {
+        try {
+            byte[] salt = new byte[16];
+            new SecureRandom().nextBytes(salt);
+            PBEKeySpec spec = new PBEKeySpec(plain.toCharArray(), salt, 65_536, 256);
+            byte[] hash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                    .generateSecret(spec).getEncoded();
+            return Base64.getEncoder().encodeToString(salt) + ":" + Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    static boolean verifyPassword(String plain, String stored) {
+        try {
+            if (!stored.contains(":")) return plain.equals(stored);
+            String[] parts = stored.split(":", 2);
+            byte[] salt         = Base64.getDecoder().decode(parts[0]);
+            byte[] expectedHash = Base64.getDecoder().decode(parts[1]);
+            PBEKeySpec spec = new PBEKeySpec(plain.toCharArray(), salt, 65_536, 256);
+            byte[] actualHash = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                    .generateSecret(spec).getEncoded();
+            return java.util.Arrays.equals(expectedHash, actualHash);
+        } catch (Exception e) { return false; }
     }
 
     static void cors(HttpExchange ex) throws IOException {
@@ -143,7 +170,7 @@ public class RoutingController {
             String password = json.has("password") ? json.get("password").getAsString() : "";
 
             User user = DS.getByUsername(username);
-            if (user == null || !user.getPassword().equals(password)) {
+            if (user == null || !verifyPassword(password, user.getPassword())) {
                 sendStatus(ex, 401);
                 return;
             }
@@ -369,21 +396,23 @@ public class RoutingController {
                 String role = json.get("role").getAsString();
                 String ambId = json.has("ambulanceId") && !json.get("ambulanceId").isJsonNull()
                         ? json.get("ambulanceId").getAsString() : null;
+                String username = json.get("username").getAsString().trim().toLowerCase();
+                String password = hashPassword(json.get("password").getAsString());
 
                 User u;
                 if ("driver".equals(role)) {
                     String ambulanceNumber = json.has("ambulanceNumber")
                             ? json.get("ambulanceNumber").getAsString() : "";
                     u = new core.models.DriverUser(id,
-                            json.get("username").getAsString(),
-                            json.get("password").getAsString(),
+                            username,
+                            password,
                             ambId,
                             json.get("displayName").getAsString(),
                             ambulanceNumber);
                 } else {
                     u = new User(id,
-                            json.get("username").getAsString(),
-                            json.get("password").getAsString(),
+                            username,
+                            password,
                             role, ambId,
                             json.get("displayName").getAsString());
                 }

@@ -217,8 +217,10 @@ public class DataStore {
     }
 
     public User getByUsername(String uname) {
+        if (uname == null) return null;
+        String norm = uname.trim().toLowerCase();
         return listCol("users").stream()
-                .filter(d -> uname.equals(d.get("username")))
+                .filter(d -> norm.equals(str(d, "username").trim().toLowerCase()))
                 .findFirst().map(this::toUser).orElse(null);
     }
 

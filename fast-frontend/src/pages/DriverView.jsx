@@ -602,8 +602,8 @@ export default function DriverView() {
       {!isFollowing && !searchOpen && (
         <button onClick={() => setIsFollowing(true)} style={{
           position: 'absolute',
-          bottom: BOTTOM_H,
-          right: 16, zIndex: 490,
+          bottom: `calc(${routeInfo ? 162 : 116}px + env(safe-area-inset-bottom, 0px))`,
+          right: 16, zIndex: 495,
           width: 50, height: 50, borderRadius: '50%',
           background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.22)',
           border: '2.5px solid #007aff',
