@@ -112,53 +112,6 @@ public class DataStore {
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 
-    /** Debug: test writes to multiple Firestore collections and return raw status+response. */
-    public Map<String, String> debugWrite() {
-        Map<String, String> results = new LinkedHashMap<>();
-
-        // Test 1: simple doc
-        testPatch(results, "/debug/test-write", Map.of("ts", System.currentTimeMillis()));
-
-        // Test 2: full case-like doc with null fields
-        Map<String, Object> caseDoc = new HashMap<>();
-        caseDoc.put("address", "debug"); caseDoc.put("lat", 32.1); caseDoc.put("lon", 34.8);
-        caseDoc.put("description", ""); caseDoc.put("patientDetails", "");
-        caseDoc.put("urgency", "emergency"); caseDoc.put("notes", ""); caseDoc.put("status", "pending");
-        caseDoc.put("createdAt", System.currentTimeMillis()); caseDoc.put("arrivalTime", 0L);
-        caseDoc.put("assignedAmbulanceId", (Object) null);
-        caseDoc.put("assignedDriverName", (Object) null);
-        testPatch(results, "/cases/debug-full-case", caseDoc);
-
-        // Test 3: read counter then write incremented
-        try {
-            Map<String, Object> ctr = getDoc("counters", "sequences");
-            results.put("counterRead", ctr != null ? "OK: " + ctr.keySet() : "null");
-            if (ctr != null) {
-                long cur = ctr.containsKey("caseSeq") ? ((Number) ctr.get("caseSeq")).longValue() : 0L;
-                results.put("caseSeqValue", String.valueOf(cur));
-                Map<String, Object> ctr2 = new HashMap<>(ctr);
-                ctr2.remove("id");
-                ctr2.put("debugSeq", 1L);
-                testPatch(results, "/counters/sequences", ctr2);
-            }
-        } catch (Exception e) { results.put("counterTest", "EXCEPTION: " + e.getMessage()); }
-
-        return results;
-    }
-
-    private void testPatch(Map<String, String> results, String path, Map<String, Object> doc) {
-        String url = BASE_URL + path;
-        try {
-            var req = HttpRequest.newBuilder().uri(URI.create(url))
-                    .header("Authorization", "Bearer " + token())
-                    .header("Content-Type", "application/json")
-                    .method("PATCH", HttpRequest.BodyPublishers.ofString(gson.toJson(toFirestoreDoc(doc)))).build();
-            HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
-            String snippet = r.body().substring(0, Math.min(180, r.body().length())).replaceAll("\n", " ");
-            results.put(path, "HTTP " + r.statusCode() + ": " + snippet);
-        } catch (Exception e) { results.put(path, "EXCEPTION: " + e.getMessage()); }
-    }
-
     // ── Firestore value conversion ────────────────────────────────────────────
 
     private JsonObject toFirestoreDoc(Map<String, Object> doc) {
