@@ -53,6 +53,8 @@ graph-cache-v2/
 files_list.txt
 STAM.txt
 collect_all.py
+run_commands.txt
+CLAUDE.md
 
 # ============================================
 # Deployment secrets (contain server IP)

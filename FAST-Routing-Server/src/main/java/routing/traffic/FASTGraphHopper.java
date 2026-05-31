@@ -3,6 +3,8 @@ package routing.traffic;
 import com.graphhopper.GraphHopper;
 import com.graphhopper.routing.DefaultWeightingFactory;
 import com.graphhopper.routing.WeightingFactory;
+import com.graphhopper.routing.ev.BooleanEncodedValue;
+import com.graphhopper.routing.ev.VehicleAccess;
 
 public class FASTGraphHopper extends GraphHopper {
 
@@ -22,8 +24,11 @@ public class FASTGraphHopper extends GraphHopper {
     protected WeightingFactory createWeightingFactory() {
         WeightingFactory base = new DefaultWeightingFactory(
                 getBaseGraph(), getEncodingManager());
+        BooleanEncodedValue carAccessEnc =
+                getEncodingManager().getBooleanEncodedValue(VehicleAccess.key("car"));
         return (profile, hints, disableTurnCosts) ->
-                new TrafficWeighting(base.createWeighting(profile, hints, disableTurnCosts), trafficData);
+                new TrafficWeighting(base.createWeighting(profile, hints, disableTurnCosts),
+                        trafficData, carAccessEnc);
     }
 
     public TrafficData getTrafficData() {
