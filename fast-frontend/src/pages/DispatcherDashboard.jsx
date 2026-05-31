@@ -64,6 +64,7 @@ export default function DispatcherDashboard() {
   const [updateSent,    setUpdateSent]    = useState(false);
   const [loadingEta,    setLoadingEta]    = useState(false);
   const [loadingAssign, setLoadingAssign] = useState(false);
+  const [etaSort,       setEtaSort]       = useState('emergency');
   const [error,         setError]         = useState('');
   const [tab,           setTab]           = useState('new');
   const [missions,      setMissions]      = useState([]);
@@ -344,8 +345,30 @@ export default function DispatcherDashboard() {
         {tab === 'new' && etaResults.length > 0 && !activeCase && (
           <div style={{ padding: '0 16px 16px' }}>
             <div style={s.sectionTitle}>בחר אמבולנס</div>
+            <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+              {[
+                { id: 'emergency', label: '🚨 חירום' },
+                { id: 'routine',   label: '🚗 שגרה'  },
+                { id: 'status',    label: '● זמינות'  },
+              ].map(col => (
+                <button key={col.id} onClick={() => setEtaSort(col.id)} style={{
+                  flex: 1, padding: '6px 0', border: '1px solid', borderRadius: 7,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  borderColor: etaSort === col.id ? '#1a1a2e' : '#e8eaed',
+                  background:  etaSort === col.id ? '#1a1a2e' : 'white',
+                  color:       etaSort === col.id ? 'white'   : '#888',
+                }}>
+                  {col.label}
+                </button>
+              ))}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {etaResults.map(row => (
+              {[...etaResults].sort((a, b) => {
+                if (etaSort === 'emergency') return (a.emergencyEtaSec ?? Infinity) - (b.emergencyEtaSec ?? Infinity);
+                if (etaSort === 'routine')   return (a.routineEtaSec   ?? Infinity) - (b.routineEtaSec   ?? Infinity);
+                if (etaSort === 'status')    return a.status === 'available' ? -1 : 1;
+                return 0;
+              }).map(row => (
                 <div key={row.ambulanceId} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', border: '1px solid #e8eaed', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>🚑 אמב. {row.ambulanceNumber || ambulances.find(a => a.id === row.ambulanceId)?.ambulanceNumber || row.ambulanceId?.replace('amb-', '')}</div>

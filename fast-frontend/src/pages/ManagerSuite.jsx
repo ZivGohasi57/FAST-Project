@@ -69,15 +69,17 @@ export default function ManagerSuite() {
   const isMobile = useIsMobile();
   const [tab, setTab] = useState('users');
 
-  const [users,     setUsers]     = useState([]);
-  const [userForm,  setUserForm]  = useState({ username: '', password: '', role: 'driver', displayName: '' });
-  const [userError, setUserError] = useState('');
-  const [userOk,    setUserOk]    = useState(false);
+  const [users,         setUsers]         = useState([]);
+  const [userForm,      setUserForm]      = useState({ username: '', password: '', role: 'driver', displayName: '' });
+  const [userError,     setUserError]     = useState('');
+  const [userOk,        setUserOk]        = useState(false);
+  const [showUserModal, setShowUserModal] = useState(false);
 
   const [ambulances,    setAmbulances]    = useState([]);
   const [ambNumber,     setAmbNumber]     = useState('');
   const [ambError,      setAmbError]      = useState('');
   const [ambOk,         setAmbOk]         = useState(false);
+  const [showAmbModal,  setShowAmbModal]  = useState(false);
 
   const [locationPickAmbId,  setLocationPickAmbId]  = useState(null);
   const [locationPickPos,    setLocationPickPos]    = useState(null);
@@ -121,6 +123,7 @@ export default function ManagerSuite() {
       await axios.post(`${API_BASE}/api/users`, userForm);
       setUserForm({ username: '', password: '', role: 'driver', displayName: '' });
       setUserOk(true); setTimeout(() => setUserOk(false), 2500);
+      setShowUserModal(false);
       fetchUsers();
     } catch { setUserError('שגיאה בהוספת משתמש'); }
   };
@@ -133,6 +136,7 @@ export default function ManagerSuite() {
       await axios.post(`${API_BASE}/api/ambulances`, { ambulanceNumber: trimmed });
       setAmbNumber('');
       setAmbOk(true); setTimeout(() => setAmbOk(false), 2500);
+      setShowAmbModal(false);
       fetchAmbulances();
     } catch { setAmbError('שגיאה בהוספת אמבולנס'); }
   };
@@ -234,16 +238,13 @@ export default function ManagerSuite() {
         <div style={{ flex: 1, overflow: tab === 'zones' ? 'hidden' : 'auto', padding: tab === 'zones' ? 0 : (isMobile ? 14 : 22), minHeight: 0 }}>
 
           {tab === 'users' && (
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
-
-              {isMobile && (
-                <div style={{ width: '100%', ...s.card }}>
-                  <div style={s.cardTitle}>הוסף משתמש</div>
-                  <UserForm userForm={userForm} setUserForm={setUserForm} userError={userError} userOk={userOk} handleAddUser={handleAddUser} />
-                </div>
-              )}
-
-              <div style={{ flex: 1, ...s.card, overflowX: 'auto' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 14 }}>
+                <button onClick={() => { setUserError(''); setUserOk(false); setShowUserModal(true); }} style={s.addBtn}>
+                  + הוסף משתמש
+                </button>
+              </div>
+              <div style={{ ...s.card, overflowX: 'auto' }}>
                 <div style={s.cardTitle}>משתמשים פעילים ({users.length})</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 380 : 'unset' }}>
                   <thead>
@@ -268,27 +269,17 @@ export default function ManagerSuite() {
                   </tbody>
                 </table>
               </div>
-
-              {!isMobile && (
-                <div style={{ width: 290, ...s.card, flexShrink: 0 }}>
-                  <div style={s.cardTitle}>הוסף משתמש</div>
-                  <UserForm userForm={userForm} setUserForm={setUserForm} userError={userError} userOk={userOk} handleAddUser={handleAddUser} />
-                </div>
-              )}
             </div>
           )}
 
           {tab === 'ambulances' && (
-            <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
-
-              {isMobile && (
-                <div style={{ width: '100%', ...s.card }}>
-                  <div style={s.cardTitle}>הוסף אמבולנס</div>
-                  <AmbulanceForm ambNumber={ambNumber} setAmbNumber={setAmbNumber} ambError={ambError} ambOk={ambOk} handleAddAmbulance={handleAddAmbulance} />
-                </div>
-              )}
-
-              <div style={{ flex: 1, ...s.card, overflowX: 'auto' }}>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: 14 }}>
+                <button onClick={() => { setAmbError(''); setAmbOk(false); setShowAmbModal(true); }} style={s.addBtn}>
+                  + הוסף אמבולנס
+                </button>
+              </div>
+              <div style={{ ...s.card, overflowX: 'auto' }}>
                 <div style={s.cardTitle}>אמבולנסים ({ambulances.length})</div>
                 {ambulances.length === 0 ? (
                   <div style={{ color: '#bbb', textAlign: 'center', padding: '32px 0', fontSize: 14 }}>
@@ -362,12 +353,6 @@ export default function ManagerSuite() {
                 )}
               </div>
 
-              {!isMobile && (
-                <div style={{ width: 260, ...s.card, flexShrink: 0 }}>
-                  <div style={s.cardTitle}>הוסף אמבולנס</div>
-                  <AmbulanceForm ambNumber={ambNumber} setAmbNumber={setAmbNumber} ambError={ambError} ambOk={ambOk} handleAddAmbulance={handleAddAmbulance} />
-                </div>
-              )}
             </div>
           )}
 
@@ -640,6 +625,30 @@ export default function ManagerSuite() {
           </div>
         </div>
       )}
+
+      {showUserModal && (
+        <div style={s.overlay} onClick={() => setShowUserModal(false)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontWeight: 700, fontSize: 17, color: '#1a1a2e' }}>הוסף משתמש</div>
+              <button onClick={() => setShowUserModal(false)} style={s.closeBtn}>✕</button>
+            </div>
+            <UserForm userForm={userForm} setUserForm={setUserForm} userError={userError} userOk={userOk} handleAddUser={handleAddUser} />
+          </div>
+        </div>
+      )}
+
+      {showAmbModal && (
+        <div style={s.overlay} onClick={() => setShowAmbModal(false)}>
+          <div style={s.modal} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontWeight: 700, fontSize: 17, color: '#1a1a2e' }}>הוסף אמבולנס</div>
+              <button onClick={() => setShowAmbModal(false)} style={s.closeBtn}>✕</button>
+            </div>
+            <AmbulanceForm ambNumber={ambNumber} setAmbNumber={setAmbNumber} ambError={ambError} ambOk={ambOk} handleAddAmbulance={handleAddAmbulance} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -715,7 +724,11 @@ const s = {
   label:       { display: 'block', fontSize: 12, color: '#666', marginBottom: 4, fontWeight: 600 },
   input:       { width: '100%', padding: '10px 11px', borderRadius: 9, border: '1px solid #e8eaed', fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', direction: 'rtl', background: 'white' },
   btn:         { width: '100%', padding: '12px 0', border: 'none', borderRadius: 9, fontWeight: 700, fontSize: 14, fontFamily: 'inherit' },
+  addBtn:      { padding: '10px 22px', border: 'none', borderRadius: 10, background: '#1a1a2e', color: 'white', fontWeight: 700, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' },
   deleteBtn:   { padding: '5px 12px', border: '1px solid #ffd5d0', borderRadius: 8, background: '#fff0ef', color: '#c0392b', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
   detailBox:   { background: '#f8f9fb', borderRadius: 8, padding: '10px 12px', fontSize: 13, color: '#444' },
   detailLabel: { fontSize: 11, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  overlay:     { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', zIndex: 9000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modal:       { background: 'white', borderRadius: 18, padding: '28px 26px', maxWidth: 420, width: '100%', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', direction: 'rtl' },
+  closeBtn:    { background: 'none', border: 'none', fontSize: 18, color: '#aaa', cursor: 'pointer', padding: '0 4px', lineHeight: 1 },
 };

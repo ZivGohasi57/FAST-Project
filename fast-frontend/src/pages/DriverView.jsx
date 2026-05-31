@@ -869,9 +869,9 @@ export default function DriverView() {
               onClick={() => setDisconnectOpen(true)}
               title="ניתוק מהאמבולנס"
               style={{
-                width: 40, height: 40, flexShrink: 0,
+                width: 48, height: 48, flexShrink: 0,
                 background: '#f5f7fa', border: '1px solid #e8eaed',
-                borderRadius: 12, cursor: 'pointer', fontSize: 16,
+                borderRadius: 12, cursor: 'pointer', fontSize: 18,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
             >🔌</button>
@@ -896,7 +896,8 @@ export default function DriverView() {
           <button
             onClick={toggleEmergency}
             style={{
-              padding: '12px 16px',
+              minHeight: 48, padding: '0 16px',
+              display: 'flex', alignItems: 'center',
               background: isEmergency ? '#fff0ef' : '#f0f9f0',
               border: `1.5px solid ${isEmergency ? '#ff3b30' : '#34c759'}`,
               borderRadius: 12, cursor: 'pointer',
@@ -916,7 +917,8 @@ export default function DriverView() {
               disabled={statusSaving}
               title={driverStatus === 'available' ? 'לחץ לסמן כלא פעיל' : 'לחץ לסמן כפנוי'}
               style={{
-                padding: '12px 14px',
+                minHeight: 48, padding: '0 14px',
+                display: 'flex', alignItems: 'center',
                 background: driverStatus === 'available' ? '#f0f9f0' : '#f5f5f5',
                 border: `1.5px solid ${driverStatus === 'available' ? '#34c759' : '#aaa'}`,
                 borderRadius: 12, cursor: 'pointer',
@@ -948,7 +950,8 @@ export default function DriverView() {
             <button
               onClick={() => setCancelConfirm(true)}
               style={{
-                padding: '12px 14px',
+                minHeight: 48, padding: '0 14px',
+                display: 'flex', alignItems: 'center',
                 background: '#fff0ef',
                 border: '1.5px solid #ff3b30',
                 borderRadius: 12, cursor: 'pointer',
@@ -1031,7 +1034,9 @@ const s = {
     background: 'white', transition: 'background 0.15s',
   },
   iconBtn: {
-    padding: '0 13px', background: '#f5f7fa',
+    minWidth: 48, minHeight: 48, padding: '0 13px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: '#f5f7fa',
     border: '1px solid #e8eaed', borderRadius: 10,
     fontSize: 18, cursor: 'pointer', whiteSpace: 'nowrap',
   },
