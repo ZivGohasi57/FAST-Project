@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -6,23 +6,23 @@ import L from 'leaflet';
 const ambulanceIcon = L.divIcon({
   className: '',
   html: `<div style="
-    width:38px;height:38px;border-radius:50%;
+    width:42px;height:42px;border-radius:50%;
     background:linear-gradient(135deg,#34c759,#28a745);
     display:flex;align-items:center;justify-content:center;
-    font-size:20px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.45),0 0 0 3px white;">🚑</div>`,
-  iconSize:[38,38], iconAnchor:[19,19], popupAnchor:[0,-22],
+    font-size:22px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.5),0 0 0 3px white;">🚑</div>`,
+  iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24],
 });
 
 const destIcon = L.divIcon({
   className: '',
   html: `<div style="
-    width:32px;height:32px;border-radius:50%;
+    width:36px;height:36px;border-radius:50%;
     background:linear-gradient(135deg,#ff3b30,#ff6b35);
     display:flex;align-items:center;justify-content:center;
-    font-size:18px;
-    box-shadow:0 2px 10px rgba(0,0,0,0.45),0 0 0 3px white;">📍</div>`,
-  iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-34],
+    font-size:20px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.5),0 0 0 3px white;">📍</div>`,
+  iconSize:[36,36], iconAnchor:[18,36], popupAnchor:[0,-38],
 });
 
 const TRAFFIC_LIGHT_SVG = `
@@ -59,17 +59,23 @@ function TrafficLayer({ segments }) {
   });
 }
 
-function AutoFit({ startPos, endPos, routeCoordinates }) {
+function PanDetector({ onUserPan }) {
+  useMapEvents({ dragstart: () => onUserPan() });
+  return null;
+}
+
+function AutoFit({ startPos, endPos, routeCoordinates, isFollowing }) {
   const map = useMap();
+
   useEffect(() => {
     if (routeCoordinates?.length > 0) {
       map.fitBounds(L.latLngBounds(routeCoordinates), { padding:[80,80], maxZoom:16 });
     } else if (startPos && endPos) {
       map.fitBounds(L.latLngBounds([startPos, endPos]), { padding:[80,80], maxZoom:16 });
-    } else if (startPos?.[0]) {
-      map.setView(startPos, 15);
+    } else if (startPos?.[0] && isFollowing) {
+      map.setView(startPos, Math.max(map.getZoom(), 15), { animate: true });
     }
-  }, [startPos, endPos, routeCoordinates, map]);
+  }, [startPos, endPos, routeCoordinates, isFollowing, map]);
   return null;
 }
 
@@ -94,14 +100,14 @@ function SignalLayer({ signals }) {
   ));
 }
 
-function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments }) {
+function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
 
   return (
     <MapContainer
       center={center}
-      zoom={14}
+      zoom={15}
       style={{ height:'100%', width:'100%' }}
       zoomControl={false}
     >
@@ -111,14 +117,13 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
         maxZoom={19}
       />
 
-      <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} />
-
+      <PanDetector onUserPan={onUserPan} />
+      <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} isFollowing={isFollowing} />
       <TrafficLayer segments={trafficSegments} />
-
       <SignalLayer signals={trafficSignals} />
 
-      {startPos && <Marker position={startPos} icon={ambulanceIcon}><Popup>Start</Popup></Marker>}
-      {endPos   && <Marker position={endPos}   icon={destIcon}><Popup>Destination</Popup></Marker>}
+      {startPos && <Marker position={startPos} icon={ambulanceIcon}><Popup>מיקום נוכחי</Popup></Marker>}
+      {endPos   && <Marker position={endPos}   icon={destIcon}><Popup>יעד</Popup></Marker>}
 
       {routeCoordinates?.length > 0 && (<>
         <Polyline positions={routeCoordinates} color={routeColor} weight={14} opacity={0.18} />
