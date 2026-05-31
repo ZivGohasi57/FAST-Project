@@ -1,3 +1,0 @@
-To run locally: 
-mvn package in FAST-Routing-Server/, then java -jar target/fast-routing-1.0-SNAPSHOT.jar. 
-Frontend: npm run dev in fast-frontend/.

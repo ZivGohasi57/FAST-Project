@@ -57,6 +57,30 @@ run_commands.txt
 CLAUDE.md
 
 # ============================================
+# Vercel deployment metadata (contains project/org IDs)
+# ============================================
+.vercel/
+fast-frontend/.vercel/
+
+# ============================================
+# Old in-memory seed data (replaced by Firestore)
+# ============================================
+FAST-Routing-Server/data/
+
+# ============================================
+# Maven generated artifacts
+# ============================================
+FAST-Routing-Server/dependency-reduced-pom.xml
+
+# ============================================
+# Vite default template files (unused)
+# ============================================
+fast-frontend/src/App.css
+fast-frontend/src/assets/react.svg
+fast-frontend/public/vite.svg
+fast-frontend/README.md
+
+# ============================================
 # Deployment secrets (contain server IP)
 # ============================================
 deploy/config.env
