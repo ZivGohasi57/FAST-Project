@@ -79,7 +79,11 @@ public class DataStore {
         try {
             var req = HttpRequest.newBuilder().uri(URI.create(url))
                     .header("Authorization", "Bearer " + token()).GET().build();
-            return http.send(req, HttpResponse.BodyHandlers.ofString()).body();
+            HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (r.statusCode() < 200 || r.statusCode() >= 300) {
+                System.err.println("[FIRESTORE GET " + r.statusCode() + "] " + url.substring(url.lastIndexOf('/')) + " -> " + r.body().substring(0, Math.min(300, r.body().length())));
+            }
+            return r.body();
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 
@@ -89,8 +93,15 @@ public class DataStore {
                     .header("Authorization", "Bearer " + token())
                     .header("Content-Type", "application/json")
                     .method("PATCH", HttpRequest.BodyPublishers.ofString(body)).build();
-            return http.send(req, HttpResponse.BodyHandlers.ofString()).body();
-        } catch (Exception e) { throw new RuntimeException(e); }
+            HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
+            if (r.statusCode() < 200 || r.statusCode() >= 300) {
+                String errMsg = "[FIRESTORE PATCH " + r.statusCode() + "] " + url + " -> " + r.body().substring(0, Math.min(300, r.body().length()));
+                System.err.println(errMsg);
+                throw new RuntimeException("Firestore write failed (" + r.statusCode() + "): " + r.body().substring(0, Math.min(120, r.body().length())));
+            }
+            return r.body();
+        } catch (RuntimeException e) { throw e; }
+          catch (Exception e)         { throw new RuntimeException(e); }
     }
 
     private void httpDelete(String url) {
@@ -99,6 +110,21 @@ public class DataStore {
                     .header("Authorization", "Bearer " + token()).DELETE().build();
             http.send(req, HttpResponse.BodyHandlers.ofString());
         } catch (Exception e) { throw new RuntimeException(e); }
+    }
+
+    /** Debug: test a Firestore write and return the raw status + response. */
+    public String debugWrite() {
+        String url = BASE_URL + "/debug/test-write";
+        Map<String, Object> m = new HashMap<>();
+        m.put("ts", System.currentTimeMillis());
+        try {
+            var req = HttpRequest.newBuilder().uri(URI.create(url))
+                    .header("Authorization", "Bearer " + token())
+                    .header("Content-Type", "application/json")
+                    .method("PATCH", HttpRequest.BodyPublishers.ofString(gson.toJson(toFirestoreDoc(m)))).build();
+            HttpResponse<String> r = http.send(req, HttpResponse.BodyHandlers.ofString());
+            return "status=" + r.statusCode() + " body=" + r.body().substring(0, Math.min(400, r.body().length()));
+        } catch (Exception e) { return "exception: " + e.getMessage(); }
     }
 
     // ── Firestore value conversion ────────────────────────────────────────────

@@ -32,6 +32,7 @@ public class RoutingController {
         server.createContext("/api/eta",        new EtaHandler());
         server.createContext("/api/users",      new UserHandler());
         server.createContext("/api/nogozones",  new NoGoZoneHandler());
+        server.createContext("/api/debug",      new DebugHandler());
         server.setExecutor(null);
         server.start();
         System.out.println("FAST API Server is running on port " + port);
@@ -440,6 +441,24 @@ public class RoutingController {
             } else {
                 sendStatus(ex, 405);
             }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // Debug (temporary — diagnose Firestore write errors)
+    // ─────────────────────────────────────────────────────────────────────
+
+    static class DebugHandler implements HttpHandler {
+        @Override public void handle(HttpExchange ex) throws IOException {
+            if (handleOptions(ex)) return;
+            cors(ex);
+            Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("projectId",   System.getenv("FIREBASE_PROJECT_ID"));
+            result.put("hasCreds",    System.getenv("FIREBASE_SERVICE_ACCOUNT") != null);
+            result.put("writeTest",   DS.debugWrite());
+            result.put("caseCount",   DS.allCases().size());
+            result.put("ambCount",    DS.allAmbulances().size());
+            sendJson(ex, result);
         }
     }
 
