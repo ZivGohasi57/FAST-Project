@@ -163,14 +163,18 @@ public class DataStore {
 
     private JsonObject toFirestoreDoc(Map<String, Object> doc) {
         JsonObject fields = new JsonObject();
-        for (var e : doc.entrySet()) fields.add(e.getKey(), toFsValue(e.getValue()));
+        // Skip null values: GSON serializes JsonNull as a missing key, producing {}
+        // which Firestore rejects with "Value with type unset" (HTTP 400).
+        // Null = field absent from Firestore — semantically equivalent.
+        for (var e : doc.entrySet()) {
+            if (e.getValue() != null) fields.add(e.getKey(), toFsValue(e.getValue()));
+        }
         JsonObject wrapper = new JsonObject(); wrapper.add("fields", fields); return wrapper;
     }
 
     private JsonElement toFsValue(Object val) {
         JsonObject v = new JsonObject();
-        if      (val == null)                                   v.add("nullValue", JsonNull.INSTANCE);
-        else if (val instanceof String  s)                      v.addProperty("stringValue",  s);
+        if      (val instanceof String  s)                      v.addProperty("stringValue",  s);
         else if (val instanceof Boolean b)                      v.addProperty("booleanValue", b);
         else if (val instanceof Double || val instanceof Float) v.addProperty("doubleValue",  ((Number)val).doubleValue());
         else if (val instanceof Number  n)                      v.addProperty("integerValue", String.valueOf(n.longValue()));
