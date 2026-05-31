@@ -10,7 +10,7 @@ export default function AmbulanceSelectPage() {
   const [error,      setError]      = useState('');
   const navigate = useNavigate();
 
-  const auth = (() => { try { return JSON.parse(localStorage.getItem('fastAuth') || '{}'); } catch { return {}; } })();
+  const auth = (() => { try { return JSON.parse(sessionStorage.getItem('fastAuth') || '{}'); } catch { return {}; } })();
 
   useEffect(() => {
     if (!auth.userId || auth.role !== 'driver') { navigate('/'); return; }
@@ -28,7 +28,7 @@ export default function AmbulanceSelectPage() {
         ambulanceId: amb.id,
         driverId:    auth.userId,
       });
-      localStorage.setItem('fastAuth', JSON.stringify({ ...auth, ambulanceId: amb.id }));
+      sessionStorage.setItem('fastAuth', JSON.stringify({ ...auth, ambulanceId: amb.id }));
       navigate('/driver');
     } catch {
       setError('שגיאה בהתחברות לאמבולנס, נסה שנית');
@@ -146,7 +146,7 @@ export default function AmbulanceSelectPage() {
 
         {/* Logout */}
         <button
-          onClick={() => { localStorage.removeItem('fastAuth'); navigate('/'); }}
+          onClick={() => { sessionStorage.removeItem('fastAuth'); navigate('/'); }}
           style={{
             marginTop: 28, width: '100%', padding: '11px',
             background: 'transparent', border: '1px solid rgba(255,255,255,0.18)',

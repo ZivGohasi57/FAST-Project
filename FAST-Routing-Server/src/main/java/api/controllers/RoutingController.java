@@ -219,6 +219,16 @@ public class RoutingController {
                                            json.get("driverId").getAsString());
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/status".equals(suffix)) {
+                JsonObject json = body(ex);
+                String newStatus = json.get("status").getAsString();
+                if ("available".equals(newStatus) || "offline".equals(newStatus)) {
+                    DS.setAmbulanceStatus(json.get("ambulanceId").getAsString(), newStatus);
+                    sendStatus(ex, 200);
+                } else {
+                    sendStatus(ex, 400);
+                }
+
             } else {
                 sendStatus(ex, 404);
             }

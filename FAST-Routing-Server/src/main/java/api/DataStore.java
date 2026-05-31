@@ -386,6 +386,10 @@ public class DataStore {
         cache.remove("users");
     }
 
+    public void setAmbulanceStatus(String id, String status) {
+        patchStatus("ambulances", id, status);
+    }
+
     public void updateLocation(String id, double lat, double lon) {
         // Skip driver GPS updates when a manager has manually locked the position
         Map<String, Object> existing = getDoc("ambulances", id);

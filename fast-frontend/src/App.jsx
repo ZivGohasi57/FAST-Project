@@ -6,7 +6,7 @@ import DispatcherDashboard  from './pages/DispatcherDashboard';
 import ManagerSuite         from './pages/ManagerSuite';
 
 function getAuth() {
-  try { return JSON.parse(localStorage.getItem('fastAuth')); } catch { return null; }
+  try { return JSON.parse(sessionStorage.getItem('fastAuth')); } catch { return null; }
 }
 
 function ProtectedRoute({ allowedRole, element }) {

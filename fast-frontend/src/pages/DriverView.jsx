@@ -278,6 +278,8 @@ export default function DriverView() {
   const [error,          setError]          = useState(null);
   const [activeCase,     setActiveCase]     = useState(null);
   const [arrivedAtScene, setArrivedAtScene] = useState(false);
+  const [driverStatus,   setDriverStatus]   = useState('available'); // 'available' | 'offline'
+  const [statusSaving,   setStatusSaving]   = useState(false);
 
   const [startText, setStartText] = useState('');
   const [endText,   setEndText]   = useState('');
@@ -296,9 +298,21 @@ export default function DriverView() {
       .catch(() => {});
   }, []);
 
+  // Load current ambulance status on mount
+  useEffect(() => {
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
+    const ambId = auth.ambulanceId;
+    if (!ambId) return;
+    axios.get(`${API_BASE}/api/ambulances`)
+      .then(r => {
+        const amb = r.data.find(a => a.id === ambId);
+        if (amb && amb.status !== 'busy') setDriverStatus(amb.status);
+      }).catch(() => {});
+  }, []);
+
   // Auto-GPS: set start position from device and update server every 30s
   useEffect(() => {
-    const auth  = JSON.parse(localStorage.getItem('fastAuth') || '{}');
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     const update = () => {
       if (!navigator.geolocation) return;
@@ -320,7 +334,7 @@ export default function DriverView() {
 
   // Poll active case for dispatcher updates every 5s
   useEffect(() => {
-    const auth  = JSON.parse(localStorage.getItem('fastAuth') || '{}');
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     if (!ambId) return;
     const poll = () =>
@@ -416,6 +430,19 @@ export default function DriverView() {
       },
       () => setError('Location access denied.')
     );
+  };
+
+  const handleToggleStatus = async () => {
+    const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || '{}');
+    const ambId = auth.ambulanceId;
+    if (!ambId || activeCase) return;
+    const next = driverStatus === 'available' ? 'offline' : 'available';
+    setStatusSaving(true);
+    try {
+      await axios.post(`${API_BASE}/api/ambulances/status`, { ambulanceId: ambId, status: next });
+      setDriverStatus(next);
+    } catch {}
+    setStatusSaving(false);
   };
 
   const toggleEmergency = () => {
@@ -792,6 +819,42 @@ export default function DriverView() {
           >
             {isEmergency ? '🚨 חירום' : '✓ שגרה'}
           </button>
+
+          {/* Driver status toggle — shown when no active case */}
+          {!activeCase && (
+            <button
+              onClick={handleToggleStatus}
+              disabled={statusSaving}
+              title={driverStatus === 'available' ? 'לחץ לסמן כלא פעיל' : 'לחץ לסמן כפנוי'}
+              style={{
+                padding: '12px 14px',
+                background: driverStatus === 'available' ? '#f0f9f0' : '#f5f5f5',
+                border: `1.5px solid ${driverStatus === 'available' ? '#34c759' : '#aaa'}`,
+                borderRadius: 12, cursor: 'pointer',
+                fontWeight: 700, fontSize: 12,
+                color: driverStatus === 'available' ? '#34c759' : '#888',
+                whiteSpace: 'nowrap',
+                transition: 'all 0.25s',
+              }}
+            >
+              {statusSaving ? '...' : (driverStatus === 'available' ? '● פנוי' : '○ לא פעיל')}
+            </button>
+          )}
+
+          {/* Busy indicator — shown when active case */}
+          {activeCase && (
+            <div style={{
+              padding: '10px 12px',
+              background: '#fff3e0',
+              border: '1.5px solid #ff9500',
+              borderRadius: 12,
+              fontWeight: 700, fontSize: 12,
+              color: '#ff9500',
+              whiteSpace: 'nowrap',
+            }}>
+              ● עסוק
+            </div>
+          )}
 
           {/* Cancel trip — shown when an active case is assigned */}
           {activeCase && activeCase.status === 'active' && (
