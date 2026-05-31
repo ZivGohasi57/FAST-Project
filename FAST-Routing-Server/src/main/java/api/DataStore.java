@@ -21,8 +21,6 @@ public class DataStore {
     private static final List<String> SCOPES =
             List.of("https://www.googleapis.com/auth/cloud-platform");
 
-    // ── In-memory cache ───────────────────────────────────────────────────────
-
     private static class CacheEntry {
         final List<Map<String, Object>> data;
         final long expires;
@@ -33,7 +31,6 @@ public class DataStore {
         boolean isValid() { return System.currentTimeMillis() < expires; }
     }
 
-    // IMPORTANT: COL_TTL must be declared BEFORE INSTANCE to avoid null during static init
     private static final Map<String, Long> COL_TTL = Map.of(
         "cases",      2_000L,
         "ambulances", 2_000L,
@@ -64,16 +61,12 @@ public class DataStore {
         }
     }
 
-    // ── Auth ──────────────────────────────────────────────────────────────────
-
     private String token() {
         try {
             credentials.refreshIfExpired();
             return credentials.getAccessToken().getTokenValue();
         } catch (IOException e) { throw new RuntimeException("Firebase token refresh failed", e); }
     }
-
-    // ── HTTP ──────────────────────────────────────────────────────────────────
 
     private String httpGet(String url) {
         try {
@@ -112,13 +105,8 @@ public class DataStore {
         } catch (Exception e) { throw new RuntimeException(e); }
     }
 
-    // ── Firestore value conversion ────────────────────────────────────────────
-
     private JsonObject toFirestoreDoc(Map<String, Object> doc) {
         JsonObject fields = new JsonObject();
-        // Skip null values: GSON serializes JsonNull as a missing key, producing {}
-        // which Firestore rejects with "Value with type unset" (HTTP 400).
-        // Null = field absent from Firestore — semantically equivalent.
         for (var e : doc.entrySet()) {
             if (e.getValue() != null) fields.add(e.getKey(), toFsValue(e.getValue()));
         }
@@ -153,8 +141,6 @@ public class DataStore {
         String name = doc.get("name").getAsString();
         return name.substring(name.lastIndexOf('/') + 1);
     }
-
-    // ── CRUD ──────────────────────────────────────────────────────────────────
 
     private void putDoc(String col, String id, Map<String, Object> doc) {
         httpPatch(BASE_URL + "/" + col + "/" + id, gson.toJson(toFirestoreDoc(doc)));
@@ -193,8 +179,6 @@ public class DataStore {
         return result;
     }
 
-    // ── Counters ──────────────────────────────────────────────────────────────
-
     private synchronized long nextSeq(String field) {
         Map<String, Object> doc = getDoc("counters", "sequences");
         if (doc == null) doc = new HashMap<>();
@@ -204,8 +188,6 @@ public class DataStore {
         putDoc("counters", "sequences", doc);
         return cur;
     }
-
-    // ── Seed ──────────────────────────────────────────────────────────────────
 
     private void seedIfEmpty() {
         if (!listCol("users").isEmpty()) return;
@@ -227,8 +209,6 @@ public class DataStore {
         putDoc("counters", "sequences", seq);
     }
 
-    // ── Users ─────────────────────────────────────────────────────────────────
-
     public void putUser(User u)    { putDoc("users", u.getId(), userToMap(u)); }
     public void deleteUser(String id) { deleteDoc("users", id); }
 
@@ -248,14 +228,10 @@ public class DataStore {
 
     public String nextUserId() { return "u" + nextSeq("userSeq"); }
 
-    // ── Sessions (in-memory — ephemeral by design) ────────────────────────────
-
     public void putSession(String token, String userId)  { sessions.put(token, userId); }
     public User getUserByToken(String token) {
         String uid = sessions.get(token); return uid != null ? getById(uid) : null;
     }
-
-    // ── Cases ─────────────────────────────────────────────────────────────────
 
     public CaseRecord createCase(CaseRecord c) {
         c.setId("case-" + nextSeq("caseSeq"));
@@ -282,7 +258,6 @@ public class DataStore {
         cd.put("assignedDriverName",  a != null ? a.getDriverName() : "");
         cd.remove("id");
         putDoc("cases", caseId, cd);
-        // Set status=busy AND activeCaseId so the driver's ambulance poll can deliver the case
         String url = BASE_URL + "/ambulances/" + ambulanceId
                 + "?updateMask.fieldPaths=status&updateMask.fieldPaths=activeCaseId";
         Map<String, Object> ap = new HashMap<>();
@@ -362,15 +337,12 @@ public class DataStore {
         }
     }
 
-    // ── No-Go Zones ───────────────────────────────────────────────────────────
-
     public NoGoZone addNoGoZone(NoGoZone z) {
         z.setId("zone-" + nextSeq("zoneSeq"));
         putDoc("nogozones", z.getId(), zoneToMap(z));
         return z;
     }
 
-    /** All zones that are currently active — used by routing engine. */
     public Collection<NoGoZone> allNoGoZones() {
         return listCol("nogozones").stream()
                 .map(this::toZone)
@@ -378,14 +350,11 @@ public class DataStore {
                 .collect(Collectors.toList());
     }
 
-    /** All zones regardless of schedule — used by manager UI. */
     public Collection<NoGoZone> allNoGoZonesRaw() {
         return listCol("nogozones").stream().map(this::toZone).collect(Collectors.toList());
     }
 
     public void deleteNoGoZone(String id) { deleteDoc("nogozones", id); }
-
-    // ── Ambulances ────────────────────────────────────────────────────────────
 
     public Collection<AmbulanceInfo> allAmbulances() {
         return listCol("ambulances").stream().map(this::toAmbulance).collect(Collectors.toList());
@@ -402,7 +371,6 @@ public class DataStore {
         User driver = getById(driverId);
         if (driver == null) return;
 
-        // Release driver from their old ambulance (if different)
         String oldAmbId = driver.getAmbulanceId();
         if (oldAmbId != null && !oldAmbId.isEmpty() && !oldAmbId.equals(ambulanceId)) {
             Map<String, Object> oldAmb = getDoc("ambulances", oldAmbId);
@@ -413,7 +381,6 @@ public class DataStore {
             }
         }
 
-        // Assign driver to new ambulance
         Map<String, Object> ambDoc = getDoc("ambulances", ambulanceId);
         if (ambDoc == null) return;
         ambDoc.put("driverId",   driverId);
@@ -422,7 +389,6 @@ public class DataStore {
         ambDoc.remove("id");
         putDoc("ambulances", ambulanceId, ambDoc);
 
-        // Partial-update driver's ambulanceId in Firestore
         String url = BASE_URL + "/users/" + driverId + "?updateMask.fieldPaths=ambulanceId";
         Map<String, Object> m = new HashMap<>();
         m.put("ambulanceId", ambulanceId);
@@ -432,7 +398,6 @@ public class DataStore {
 
     public void setAmbulanceStatus(String id, String status) {
         if ("available".equals(status)) {
-            // Enforce: available requires a driver to be assigned
             Map<String, Object> doc = getDoc("ambulances", id);
             String driverId = doc != null ? (String) doc.get("driverId") : null;
             if (driverId == null || driverId.isEmpty()) return;
@@ -449,7 +414,6 @@ public class DataStore {
         ambDoc.put("status",     "offline");
         ambDoc.remove("id");
         putDoc("ambulances", ambulanceId, ambDoc);
-        // Clear ambulanceId from driver's Firestore profile
         if (driverId != null && !driverId.isEmpty()) {
             String url = BASE_URL + "/users/" + driverId + "?updateMask.fieldPaths=ambulanceId";
             Map<String, Object> m = new HashMap<>();
@@ -460,7 +424,6 @@ public class DataStore {
     }
 
     public void updateLocation(String id, double lat, double lon) {
-        // Skip driver GPS updates when a manager has manually locked the position
         Map<String, Object> existing = getDoc("ambulances", id);
         if (existing != null && Boolean.TRUE.equals(existing.get("locationLocked"))) return;
         String url = BASE_URL + "/ambulances/" + id
@@ -488,16 +451,12 @@ public class DataStore {
         cache.remove("ambulances");
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
     private void patchStatus(String col, String id, String status) {
         String url = BASE_URL + "/" + col + "/" + id + "?updateMask.fieldPaths=status";
         Map<String, Object> m = new HashMap<>(); m.put("status", status);
         httpPatch(url, gson.toJson(toFirestoreDoc(m)));
         cache.remove(col);
     }
-
-    // ── Model converters ──────────────────────────────────────────────────────
 
     private Map<String, Object> userToMap(User u) {
         Map<String, Object> m = new HashMap<>();
@@ -537,6 +496,10 @@ public class DataStore {
         a.setAmbulanceNumber((String) m.get("ambulanceNumber"));
         a.setLocationLocked(Boolean.TRUE.equals(m.get("locationLocked")));
         a.setActiveCaseId((String) m.get("activeCaseId"));
+        if ("available".equals(a.getStatus())) {
+            String driverId = a.getDriverId();
+            if (driverId == null || driverId.isEmpty()) a.setStatus("offline");
+        }
         return a;
     }
 

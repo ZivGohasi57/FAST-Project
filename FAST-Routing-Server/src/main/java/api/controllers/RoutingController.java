@@ -38,10 +38,6 @@ public class RoutingController {
         System.out.println("FAST API Server is running on port " + port);
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────────────
-
     static void cors(HttpExchange ex) throws IOException {
         ex.getResponseHeaders().set("Access-Control-Allow-Origin",  "*");
         ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
@@ -87,10 +83,6 @@ public class RoutingController {
         return m;
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Existing handlers (kept unchanged)
-    // ─────────────────────────────────────────────────────────────────────
-
     static class RouteHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
@@ -110,8 +102,6 @@ public class RoutingController {
             RouteResponse resp = engine.getOptimalRoute(
                     new RouteRequest(startLat, startLon, endLat, endLon, isEmergency));
 
-            // No-go zone enforcement: if emergency route passes through a restricted zone,
-            // fall back to routine (no contraflow allowed in that area)
             if (isEmergency && resp.getPath() != null && !DS.allNoGoZones().isEmpty()) {
                 boolean blocked = resp.getPath().stream()
                     .anyMatch(c -> DS.allNoGoZones().stream()
@@ -142,10 +132,6 @@ public class RoutingController {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Auth
-    // ─────────────────────────────────────────────────────────────────────
-
     static class LoginHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange ex) throws IOException {
@@ -173,10 +159,6 @@ public class RoutingController {
             sendJson(ex, resp);
         }
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // Ambulances
-    // ─────────────────────────────────────────────────────────────────────
 
     static class AmbulanceHandler implements HttpHandler {
         @Override
@@ -250,10 +232,6 @@ public class RoutingController {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Cases
-    // ─────────────────────────────────────────────────────────────────────
-
     static class CaseHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange ex) throws IOException {
@@ -264,7 +242,6 @@ public class RoutingController {
             String method = ex.getRequestMethod();
 
             if ("POST".equals(method) && suffix.isEmpty()) {
-                // Create case
                 JsonObject json = body(ex);
                 CaseRecord c = new CaseRecord();
                 c.setAddress(       json.has("address")        ? json.get("address").getAsString()         : "");
@@ -277,21 +254,18 @@ public class RoutingController {
                 sendJson(ex, DS.createCase(c));
 
             } else if ("GET".equals(method) && suffix.isEmpty()) {
-                // List all cases
                 List<CaseRecord> sorted = DS.allCases().stream()
                         .sorted((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()))
                         .collect(Collectors.toList());
                 sendJson(ex, sorted);
 
             } else if ("GET".equals(method) && "/active".equals(suffix)) {
-                // Active case for a specific ambulance
                 Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
                 String ambulanceId = params.get("ambulanceId");
                 CaseRecord c = ambulanceId != null ? DS.getActiveForAmbulance(ambulanceId) : null;
                 sendJson(ex, c);
 
             } else if ("GET".equals(method) && suffix.length() > 1 && !"/active".equals(suffix)) {
-                // Get a single case by ID  e.g. /api/cases/case-21
                 sendJson(ex, DS.getCaseById(suffix.substring(1)));
 
             } else if ("POST".equals(method) && "/assign".equals(suffix)) {
@@ -335,10 +309,6 @@ public class RoutingController {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // ETA
-    // ─────────────────────────────────────────────────────────────────────
-
     static class EtaHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange ex) throws IOException {
@@ -373,10 +343,6 @@ public class RoutingController {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // Users (manager)
-    // ─────────────────────────────────────────────────────────────────────
-
     static class UserHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange ex) throws IOException {
@@ -384,7 +350,6 @@ public class RoutingController {
             String method = ex.getRequestMethod();
 
             if ("GET".equals(method)) {
-                // Return users without passwords
                 List<Map<String, Object>> list = DS.allUsers().stream().map(u -> {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("id",          u.getId());
@@ -423,7 +388,6 @@ public class RoutingController {
                             json.get("displayName").getAsString());
                 }
                 DS.putUser(u);
-                // If driver with ambulanceId — auto-create ambulance entry if not exists
                 if ("driver".equals(u.getRole()) && u.getAmbulanceId() != null
                         && DS.getAmbulance(u.getAmbulanceId()) == null) {
                     AmbulanceInfo newAmb = new AmbulanceInfo(
@@ -453,10 +417,6 @@ public class RoutingController {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────
-    // No-Go Zones (manager)
-    // ─────────────────────────────────────────────────────────────────────
-
     static class NoGoZoneHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange ex) throws IOException {
@@ -464,7 +424,7 @@ public class RoutingController {
             String method = ex.getRequestMethod();
 
             if ("GET".equals(method)) {
-                sendJson(ex, DS.allNoGoZonesRaw()); // all zones for manager UI
+                sendJson(ex, DS.allNoGoZonesRaw());
 
             } else if ("POST".equals(method)) {
                 JsonObject json = body(ex);

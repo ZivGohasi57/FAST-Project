@@ -6,7 +6,6 @@ import { API_BASE } from '../config.js';
 
 const NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-// ── Turn sign → Hebrew text ───────────────────────────────────────────────────
 const SIGN_TEXT = {
   [-3]: 'פנה חדה שמאלה',
   [-2]: 'פנה שמאלה',
@@ -23,18 +22,15 @@ const SIGN_TEXT = {
 };
 const signText = (sign) => SIGN_TEXT[sign] ?? 'המשך';
 
-// ── SVG arrow — rotates to point in the turn direction ───────────────────────
-// Rotation degrees (clockwise from "up") per GraphHopper sign:
 const SIGN_ROTATION = {
   [-3]: -130, [-2]: -90, [-1]: -45,
   [0]:    0,
   [1]:   45,  [2]:  90, [3]: 130,
-  [-6]:  60,  // leave roundabout
+  [-6]:  60,
   [7]:  -45,  [8]:  45,
 };
 
 function TurnArrow({ sign, size = 34, color = 'white' }) {
-  // Destination pin
   if (sign === 4) {
     return (
       <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
@@ -45,53 +41,41 @@ function TurnArrow({ sign, size = 34, color = 'white' }) {
     );
   }
 
-  // Roundabout: circular arrow with exit number
-  if (sign === 6) return null; // handled by RoundaboutArrow in InstructionBanner
+  if (sign === 6) return null;
 
   const rot = SIGN_ROTATION[sign] ?? 0;
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none"
          style={{ transform: `rotate(${rot}deg)`, display: 'block' }}>
-      {/* Stem */}
       <line x1="16" y1="27" x2="16" y2="9" stroke={color} strokeWidth="3" strokeLinecap="round"/>
-      {/* Arrowhead */}
       <path d="M9 17 L16 7 L23 17" stroke={color} strokeWidth="3"
             strokeLinecap="round" strokeLinejoin="round" fill="none"/>
     </svg>
   );
 }
 
-// ── Roundabout SVG icon — circular arrow (CCW) with exit number ───────────────
 function RoundaboutArrow({ exitNumber = 0, size = 36, color = 'white' }) {
   const cx = 18, cy = 18, r = 10;
-  // SVG arc: counterclockwise 300° (leaving a gap at bottom for entry road)
-  // Arc from (cx+r, cy) → same point minus a small gap, large arc, CCW sweep (0)
-  // We use stroke-dasharray on the full circle to simulate the 300° arc
   const circ = 2 * Math.PI * r;
   const dashLen = circ * (300 / 360);
   const gapLen  = circ - dashLen;
-  // Offset so the gap is at the bottom center
   const offset  = circ * (90 / 360) + gapLen / 2;
 
   return (
     <div style={{ position: 'relative', width: size, height: size }}>
       <svg width={size} height={size} viewBox="0 0 36 36" fill="none">
-        {/* CCW ring (gap at the bottom where the entry road is) */}
         <circle
           cx={cx} cy={cy} r={r}
           stroke={color} strokeWidth="2.5" strokeLinecap="round"
           strokeDasharray={`${dashLen} ${gapLen}`}
           strokeDashoffset={offset}
-          transform={`scale(-1,1) translate(-36,0)`}  /* flip X → makes it CCW visually */
+          transform={`scale(-1,1) translate(-36,0)`}
         />
-        {/* Arrowhead at top of circle, pointing left (CCW direction) */}
         <path d={`M ${cx-5} ${cy-r-3} L ${cx} ${cy-r} L ${cx-3} ${cy-r+5}`}
               stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        {/* Entry road from bottom */}
         <line x1={cx} y1="36" x2={cx} y2={cy+r+2}
               stroke={color} strokeWidth="2.5" strokeLinecap="round"/>
       </svg>
-      {/* Exit number centred inside the circle */}
       {exitNumber > 0 && (
         <div style={{
           position: 'absolute', top: '50%', left: '50%',
@@ -105,7 +89,6 @@ function RoundaboutArrow({ exitNumber = 0, size = 36, color = 'white' }) {
   );
 }
 
-// ── Address search input with Nominatim autocomplete ─────────────────────────
 function AddressInput({ icon, value, onChange, onSelect, placeholder, inputRef }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loading, setLoading]         = useState(false);
@@ -176,7 +159,6 @@ function AddressInput({ icon, value, onChange, onSelect, placeholder, inputRef }
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 const fmtDist = (m) => m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
 const fmtTime = (sec) => {
   if (sec < 60) return `${sec}s`;
@@ -186,13 +168,9 @@ const fmtTime = (sec) => {
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 };
 
-// ── Instruction banner (top overlay) ─────────────────────────────────────────
 function InstructionBanner({ instructions, isEmergency }) {
   if (!instructions?.length) return null;
 
-  // Find the first non-START instruction (sign ≠ 0 at index 0 is the heading step)
-  // instructions[0] = start heading; instructions[1] = first actual turn, etc.
-  // We show instructions[1] (next maneuver) if it exists, else instructions[0].
   const next = instructions.length > 1 ? instructions[1] : instructions[0];
   if (!next) return null;
 
@@ -211,7 +189,6 @@ function InstructionBanner({ instructions, isEmergency }) {
   const isRoundabout = next.sign === 6 || next.sign === -6;
   const iconColor    = isContraflow ? '#ffcdd2' : 'white';
 
-  // Build instruction label
   let instrLabel;
   if (next.sign === 6) {
     instrLabel = next.exitNumber > 0
@@ -235,7 +212,6 @@ function InstructionBanner({ instructions, isEmergency }) {
       display: 'flex', alignItems: 'center', gap: 12,
       backdropFilter: 'blur(6px)',
     }}>
-      {/* Direction icon */}
       <div style={{ flexShrink: 0, width: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {isRoundabout
           ? <RoundaboutArrow exitNumber={next.exitNumber ?? 0} size={36} color={iconColor} />
@@ -243,7 +219,6 @@ function InstructionBanner({ instructions, isEmergency }) {
         }
       </div>
 
-      {/* Text block */}
       <div style={{ flex: 1, minWidth: 0 }}>
         {!isArrive && (
           <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 2 }}>
@@ -266,7 +241,6 @@ function InstructionBanner({ instructions, isEmergency }) {
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
 export default function DriverView() {
   const [isEmergency,    setIsEmergency]    = useState(false);
   const [searchOpen,     setSearchOpen]     = useState(true);
@@ -297,18 +271,16 @@ export default function DriverView() {
   const endInputRef          = useRef(null);
   const prevCaseIdRef        = useRef(null);
   const locationLockedRef    = useRef(false);
-  const prevActiveCaseIdRef  = useRef(null); // tracks activeCaseId seen on ambulance doc
+  const prevActiveCaseIdRef  = useRef(null);
   const [newCaseAlert,  setNewCaseAlert]  = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
 
-  // Fetch traffic signals once at startup
   useEffect(() => {
     axios.get(`${API_BASE}/api/signals`)
       .then(res => setTrafficSignals(res.data))
       .catch(() => {});
   }, []);
 
-  // Poll traffic congestion every 30s (matches simulator tick interval)
   useEffect(() => {
     const fetch = () =>
       axios.get(`${API_BASE}/api/traffic`)
@@ -319,7 +291,6 @@ export default function DriverView() {
     return () => clearInterval(iv);
   }, []);
 
-  // Poll own ambulance every 3s — handles location-lock sync AND case delivery
   useEffect(() => {
     const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
@@ -342,10 +313,8 @@ export default function DriverView() {
           const amb = r.data.find(a => a.id === ambId);
           if (!amb) return;
 
-          // Sync status
           if (amb.status !== 'busy') setDriverStatus(amb.status);
 
-          // Sync manager-locked position
           const locked = !!amb.locationLocked;
           locationLockedRef.current = locked;
           setLocationLocked(locked);
@@ -354,10 +323,8 @@ export default function DriverView() {
             setStartText('📍 מיקום (נעול ע"י מנהל)');
           }
 
-          // PRIMARY case delivery via activeCaseId embedded in ambulance doc
           const caseId = amb.activeCaseId || null;
           if (caseId && caseId !== prevActiveCaseIdRef.current) {
-            // New case arrived — fetch details and deliver to driver
             prevActiveCaseIdRef.current = caseId;
             axios.get(`${API_BASE}/api/cases/${caseId}`)
               .then(cr => {
@@ -368,7 +335,6 @@ export default function DriverView() {
               })
               .catch(() => {});
           } else if (!caseId && prevActiveCaseIdRef.current !== null) {
-            // Case was cleared (cancelled/completed)
             prevActiveCaseIdRef.current = null;
             resetNav();
           }
@@ -380,12 +346,11 @@ export default function DriverView() {
     return () => clearInterval(iv);
   }, []);
 
-  // Auto-GPS: set start position from device and update server every 30s
   useEffect(() => {
     const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     const update = () => {
-      if (locationLockedRef.current) return; // manager locked our position — skip GPS
+      if (locationLockedRef.current) return;
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(({ coords }) => {
         const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
@@ -403,7 +368,6 @@ export default function DriverView() {
     return () => clearInterval(iv);
   }, []);
 
-  // Poll active case for dispatcher updates every 5s
   useEffect(() => {
     const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
@@ -425,7 +389,6 @@ export default function DriverView() {
           if (c && c.status === 'cancelled') {
             resetNav();
           } else if (!c && prevCaseIdRef.current !== null) {
-            // Case was cleared by dispatcher (cancelled/completed) — backend returned null
             resetNav();
           } else {
             setActiveCase(c);
@@ -437,7 +400,6 @@ export default function DriverView() {
     return () => clearInterval(iv);
   }, []);
 
-  // Auto-navigate when dispatcher assigns a new case
   useEffect(() => {
     if (!activeCase) { prevCaseIdRef.current = null; return; }
     if (activeCase.id === prevCaseIdRef.current) return;
@@ -450,17 +412,15 @@ export default function DriverView() {
     setSearchOpen(false);
   }, [activeCase]);
 
-  // Auto-dismiss new case alert after 8s
   useEffect(() => {
     if (!newCaseAlert) return;
     const t = setTimeout(() => setNewCaseAlert(false), 8000);
     return () => clearTimeout(t);
   }, [newCaseAlert]);
 
-  // Auto-route once both GPS position and destination are set
   useEffect(() => {
     if (startPos && endPos) fetchRoute(isEmergency, startPos, endPos);
-  }, [startPos, endPos]); // eslint-disable-line
+  }, [startPos, endPos]);
 
   const fetchRoute = useCallback(async (emergency, start, end) => {
     if (!start || !end) return;
@@ -523,7 +483,6 @@ export default function DriverView() {
     setDisconnecting(true);
     try {
       await axios.post(`${API_BASE}/api/ambulances/disconnect`, { ambulanceId: ambId });
-      // Clear ambulanceId from auth so the poll stops
       const updated = { ...auth, ambulanceId: null };
       sessionStorage.setItem('fastAuth', JSON.stringify(updated));
       localStorage.setItem('fastAuth', JSON.stringify(updated));
@@ -559,7 +518,6 @@ export default function DriverView() {
     <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden',
                   fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
-      {/* ── Full-screen map ── */}
       <div style={{ position: 'absolute', inset: 0 }}>
         <MapDisplay
           routeCoordinates={routeCoords}
@@ -571,12 +529,10 @@ export default function DriverView() {
         />
       </div>
 
-      {/* ── Instruction banner (top) ── */}
       {instructions.length > 0 && (
         <InstructionBanner instructions={instructions} isEmergency={isEmergency} />
       )}
 
-      {/* ── Dispatcher notes banner (last update only) ── */}
       {activeCase?.notes && (() => { const last = activeCase.notes.split('\n').filter(Boolean).pop(); return last ? (
         <div style={{
           position: 'absolute',
@@ -601,7 +557,6 @@ export default function DriverView() {
         </div>
       ) : null; })()}
 
-      {/* ── New case alert overlay ── */}
       {newCaseAlert && activeCase && (
         <div style={{
           position: 'absolute', inset: 0,
@@ -624,12 +579,10 @@ export default function DriverView() {
           }}
             onClick={e => e.stopPropagation()}
           >
-            {/* Icon */}
             <div style={{ textAlign: 'center', fontSize: 52, lineHeight: 1, marginBottom: 14 }}>
               {activeCase.urgency === 'emergency' ? '🚨' : '📋'}
             </div>
 
-            {/* Title */}
             <div style={{
               textAlign: 'center',
               fontSize: 20, fontWeight: 800,
@@ -639,7 +592,6 @@ export default function DriverView() {
               קריאה חדשה התקבלה
             </div>
 
-            {/* Urgency badge */}
             <div style={{ textAlign: 'center', marginBottom: 18 }}>
               <span style={{
                 display: 'inline-block',
@@ -653,7 +605,6 @@ export default function DriverView() {
               </span>
             </div>
 
-            {/* Address */}
             <div style={{
               background: '#f5f7fa', borderRadius: 12, padding: '12px 14px',
               marginBottom: 12,
@@ -662,7 +613,6 @@ export default function DriverView() {
               <div style={{ color: '#1a1a2e', fontSize: 15, fontWeight: 700 }}>{activeCase.address}</div>
             </div>
 
-            {/* Patient details */}
             {activeCase.patientDetails && (
               <div style={{
                 background: '#f5f7fa', borderRadius: 12, padding: '10px 14px',
@@ -673,7 +623,6 @@ export default function DriverView() {
               </div>
             )}
 
-            {/* Auto-nav notice */}
             <div style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
               color: '#007aff', fontSize: 13, fontWeight: 600, marginBottom: 20,
@@ -682,7 +631,6 @@ export default function DriverView() {
               <span>הניווט מתחיל אוטומטית…</span>
             </div>
 
-            {/* Dismiss button */}
             <button
               onClick={() => setNewCaseAlert(false)}
               style={{
@@ -700,7 +648,6 @@ export default function DriverView() {
         </div>
       )}
 
-      {/* ── Cancel confirmation overlay ── */}
       {cancelConfirm && (
         <div style={{
           position: 'absolute', inset: 0,
@@ -757,7 +704,6 @@ export default function DriverView() {
         </div>
       )}
 
-      {/* ── Disconnect confirmation overlay ── */}
       {disconnectOpen && (
         <div style={{
           position: 'absolute', inset: 0,
@@ -793,7 +739,6 @@ export default function DriverView() {
         </div>
       )}
 
-      {/* ── Bottom sheet ── */}
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
         background: 'white',
@@ -802,19 +747,16 @@ export default function DriverView() {
         zIndex: 500,
         transition: 'all 0.3s ease',
       }}>
-        {/* drag handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e0e0e0' }} />
         </div>
 
-        {/* ── AMBULANCE ID INDICATOR ── */}
         {ambulanceId && (
           <div style={{ textAlign: 'center', fontSize: 10, color: '#bbb', marginBottom: 2, letterSpacing: 0.3 }}>
             🚑 {ambulanceId.replace('amb-', 'אמב. ')}
           </div>
         )}
 
-        {/* ── LOCATION LOCK NOTICE ── */}
         {locationLocked && (
           <div style={{
             margin: '0 14px 8px',
@@ -828,7 +770,6 @@ export default function DriverView() {
           </div>
         )}
 
-        {/* ── ROUTE INFO strip ── */}
         {routeInfo && (
           <div style={{
             display: 'flex', justifyContent: 'space-around', alignItems: 'center',
@@ -843,14 +784,12 @@ export default function DriverView() {
           </div>
         )}
 
-        {/* ── SEARCH PANEL (collapsible) ── */}
         <div style={{
           overflow: 'hidden',
           maxHeight: searchOpen ? '320px' : '0px',
           transition: 'max-height 0.35s ease',
         }}>
           <div style={{ padding: '14px 20px 6px' }}>
-            {/* Start row */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
               <div style={{ flex: 1 }}>
                 <AddressInput
@@ -866,7 +805,6 @@ export default function DriverView() {
               </button>
             </div>
 
-            {/* Destination row */}
             <AddressInput
               icon="🔴"
               value={endText}
@@ -876,7 +814,6 @@ export default function DriverView() {
               inputRef={endInputRef}
             />
 
-            {/* Navigate button */}
             <button
               onClick={() => fetchRoute(isEmergency, startPos, endPos)}
               disabled={!canNavigate}
@@ -899,7 +836,6 @@ export default function DriverView() {
           </div>
         </div>
 
-        {/* ── ARRIVE AT SCENE ── */}
         {activeCase && activeCase.status === 'active' && (
           <div style={{ padding: '0 16px 10px' }}>
             {!arrivedAtScene ? (
@@ -927,9 +863,7 @@ export default function DriverView() {
           </div>
         )}
 
-        {/* ── BOTTOM BAR ── */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingTop: 8, paddingLeft: 16, paddingRight: 16, paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
-          {/* Disconnect button — small, only when no active case */}
           {!activeCase && (
             <button
               onClick={() => setDisconnectOpen(true)}
@@ -959,7 +893,6 @@ export default function DriverView() {
             </span>
           </button>
 
-          {/* Emergency toggle */}
           <button
             onClick={toggleEmergency}
             style={{
@@ -977,7 +910,6 @@ export default function DriverView() {
             {isEmergency ? '🚨 חירום' : '✓ שגרה'}
           </button>
 
-          {/* Driver status toggle — shown when no active case */}
           {!activeCase && (
             <button
               onClick={handleToggleStatus}
@@ -998,7 +930,6 @@ export default function DriverView() {
             </button>
           )}
 
-          {/* Busy indicator — shown when active case */}
           {activeCase && (
             <div style={{
               padding: '10px 12px',
@@ -1013,7 +944,6 @@ export default function DriverView() {
             </div>
           )}
 
-          {/* Cancel trip — shown when an active case is assigned */}
           {activeCase && activeCase.status === 'active' && (
             <button
               onClick={() => setCancelConfirm(true)}
@@ -1031,7 +961,6 @@ export default function DriverView() {
             </button>
           )}
 
-          {/* Cancel pending indicator */}
           {activeCase && activeCase.status === 'cancel_requested' && (
             <div style={{
               padding: '10px 12px',
@@ -1072,7 +1001,6 @@ function StatBlock({ value, label, color, large }) {
   );
 }
 
-// ── Shared styles ─────────────────────────────────────────────────────────────
 const s = {
   inputRow: {
     display: 'flex', alignItems: 'center',

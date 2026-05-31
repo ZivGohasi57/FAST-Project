@@ -5,15 +5,12 @@ import java.time.*;
 public class NoGoZone {
     private String id;
     private String name;
-    /** "permanent" | "daily" | "once" */
     private String type = "permanent";
     private double minLat, maxLat, minLon, maxLon;
 
-    // daily: "HH:MM" strings
     private String dailyStart;
     private String dailyEnd;
 
-    // once: epoch milliseconds
     private long onceStart;
     private long onceEnd;
 
@@ -23,7 +20,6 @@ public class NoGoZone {
         return lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon;
     }
 
-    /** True when this zone should actively block emergency routing right now. */
     public boolean isCurrentlyActive() {
         if (type == null || "permanent".equals(type)) return true;
 
@@ -33,7 +29,6 @@ public class NoGoZone {
                 LocalTime now   = LocalTime.now(ZoneId.of("Asia/Jerusalem"));
                 LocalTime start = LocalTime.parse(dailyStart);
                 LocalTime end   = LocalTime.parse(dailyEnd);
-                // handles overnight ranges (e.g. 22:00–06:00)
                 return start.isBefore(end)
                     ? (!now.isBefore(start) && !now.isAfter(end))
                     : (!now.isBefore(start) || !now.isAfter(end));

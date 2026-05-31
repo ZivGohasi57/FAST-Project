@@ -8,13 +8,6 @@ import com.graphhopper.routing.ev.VehicleSpeed;
 import routing.parsers.AmbulanceAccessParser;
 import routing.parsers.AmbulanceSpeedParser;
 
-/**
- * Extends GraphHopper's default import registry to add support for the "ambulance" vehicle type.
- *
- * Accepts a DualCarriagewayDetector so the AmbulanceAccessParser can enforce:
- *   1. No contraflow on non-urban roads (motorway / trunk).
- *   2. No contraflow when a parallel road in the correct direction exists.
- */
 public class AmbulanceImportRegistry extends DefaultImportRegistry {
 
     private final DualCarriagewayDetector dualDetector;
@@ -43,7 +36,7 @@ public class AmbulanceImportRegistry extends DefaultImportRegistry {
                     name,
                     props.getInt("speed_bits", 7),
                     props.getDouble("speed_factor", 2.0),
-                    true  // storeTwoDirections — required for bidirectional speed
+                    true
                 ),
                 (lookup, props) -> new AmbulanceSpeedParser(lookup),
                 "ferry_speed"

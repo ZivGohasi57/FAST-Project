@@ -35,47 +35,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Embedded GraphHopper routing engine client.
- *
- * Profiles
- * --------
- * ambulance_routine  : standard car routing, one-way restrictions respected.
- * ambulance_emergency: ambulance vehicle, bidirectional (contraflow), speed-optimised.
- *                      With-traffic: 1.2× speed limit.  Contraflow: 0.7× speed limit.
- */
 public class FastRoutingEngineClient implements IRoutingEngineClient {
 
-    // ── Time calculation constants ────────────────────────────────────────────
-    // Emergency speed factors are encoded in the CustomModel:
-    //   with-traffic: 1.2× ambulance_average_speed (20% above limit)
-    //   contraflow   : 0.7× ambulance_average_speed (caution, against flow)
-    // GraphHopper therefore returns path.getTime() that already reflects real ambulance speed.
+    private static final long   CONTRAFLOW_MIN_SAVING_SEC  = 30L;
+    private static final double ROUTINE_SIGNAL_DELAY       = 90.0;
+    private static final double ROUTINE_NO_SIGNAL_DELAY    = 20.0;
+    private static final double EMERGENCY_SIGNAL_DELAY     = 30.0;
+    private static final double EMERGENCY_NO_SIGNAL_DELAY  = 10.0;
+    private static final double SIGNAL_RADIUS_M            = 20.0;
 
-    /**
-     * Minimum time saving (seconds) required before an ambulance may use contraflow.
-     * If the contraflow route does not beat the legal alternative by at least this amount,
-     * the router falls back to the law-abiding (routine) path.
-     */
-    private static final long CONTRAFLOW_MIN_SAVING_SEC = 30L;
-
-    // Intersection delay constants (seconds)
-    private static final double ROUTINE_SIGNAL_DELAY     = 90.0;   // red light wait
-    private static final double ROUTINE_NO_SIGNAL_DELAY  = 20.0;   // yield / slow-roll
-    private static final double EMERGENCY_SIGNAL_DELAY   = 30.0;   // siren clears light
-    private static final double EMERGENCY_NO_SIGNAL_DELAY = 10.0;  // siren + slow check
-
-    /** Radius in metres to match an instruction node against a traffic_signals OSM node. */
-    private static final double SIGNAL_RADIUS_M = 20.0;
-
-    // ── Fields ────────────────────────────────────────────────────────────────
-    private final FASTGraphHopper hopper;
+    private final FASTGraphHopper  hopper;
     private final TrafficSignalIndex signalIndex;
 
-    /**
-     * @param osmFile       path to the OSM data file (e.g. "export.osm")
-     * @param graphCacheDir directory for the graph cache
-     */
     public FastRoutingEngineClient(String osmFile, String graphCacheDir) {
         DualCarriagewayDetector dualDetector = DualCarriagewayDetector.build(osmFile);
         hopper      = buildHopper(osmFile, graphCacheDir, dualDetector);
@@ -90,10 +61,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return hopper.getTrafficData();
     }
 
-    /**
-     * Returns all currently congested road segments with their coordinates, congestion level,
-     * and estimated average speed. Used by the /api/traffic endpoint for map overlay.
-     */
     public List<Map<String, Object>> getTrafficOverlay() {
         BaseGraph graph = hopper.getBaseGraph();
         Map<Integer, CongestionLevel> congestion = hopper.getTrafficData().getAllCongestion();
@@ -128,10 +95,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return result;
     }
 
-    // -------------------------------------------------------------------------
-    // IRoutingEngineClient
-    // -------------------------------------------------------------------------
-
     @Override
     public RouteResponse fetchRoute(RouteRequest request, String profileName) {
         boolean isEmergency = "ambulance_emergency".equals(profileName);
@@ -141,7 +104,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
                 request.getEndLat(), request.getEndLon()
         ).setProfile(profileName);
 
-        // Request car_access per-edge so we can detect contraflow segments
         if (isEmergency) {
             ghRequest.setPathDetails(List.of("car_access"));
         }
@@ -155,12 +117,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
 
         ResponsePath path = ghResponse.getBest();
 
-        // ── Contraflow savings check ─────────────────────────────────────────
-        // Rule: contraflow is only permitted if it saves ≥ CONTRAFLOW_MIN_SAVING_SEC
-        // seconds compared to the best legal (routine) path.
-        // Implementation: compute both times and fall back to the legal path when
-        // the saving is insufficient.  One extra route computation happens only when
-        // the emergency path actually uses contraflow; normal-direction routes skip it.
         if (isEmergency && pathUsesContraflow(path)) {
             GHResponse legalResponse = hopper.route(new GHRequest(
                     request.getStartLat(), request.getStartLon(),
@@ -168,15 +124,14 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
             ).setProfile("ambulance_routine"));
 
             if (!legalResponse.hasErrors()) {
-                ResponsePath legalPath   = legalResponse.getBest();
-                long         emergencyMs = calculateTime(path,      true);
-                long         legalMs     = calculateTime(legalPath, false);
-                long         savingSec   = legalMs - emergencyMs;
+                ResponsePath legalPath  = legalResponse.getBest();
+                long emergencyMs        = calculateTime(path,      true);
+                long legalMs            = calculateTime(legalPath, false);
+                long savingSec          = legalMs - emergencyMs;
 
                 if (savingSec < CONTRAFLOW_MIN_SAVING_SEC) {
                     System.out.println("[FAST] Contraflow saves only " + savingSec
                             + "s < " + CONTRAFLOW_MIN_SAVING_SEC + "s threshold — using legal route.");
-                    // Fall back: legal route, treated as routine for time/step purposes
                     path        = legalPath;
                     isEmergency = false;
                 } else {
@@ -197,11 +152,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return new RouteResponse(path.getDistance(), timeSec, coordinates, steps);
     }
 
-    /**
-     * Returns true when any edge in the path is traversed against its car-legal direction
-     * (i.e., the route actually uses a contraflow segment).
-     * Requires that car_access PathDetails were requested before routing.
-     */
     private boolean pathUsesContraflow(ResponsePath path) {
         Map<String, List<PathDetail>> details = path.getPathDetails();
         if (details == null) return false;
@@ -211,44 +161,23 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return false;
     }
 
-    // -------------------------------------------------------------------------
-    // Step instruction builder
-    // -------------------------------------------------------------------------
-
-    /**
-     * Converts GraphHopper's InstructionList into StepInstruction records.
-     *
-     * GraphHopper model:
-     *   instr[i].getDistance() = length of the road segment AFTER instr[i]'s maneuver.
-     *
-     * We re-index so that step[i].distanceMeters = distance the driver must travel
-     * BEFORE executing step[i]'s maneuver (= instr[i-1].getDistance()).
-     *
-     * Contraflow detection: for emergency routes, PathDetails "car_access" is requested.
-     * A segment has car_access=false when the ambulance traverses it against the normal
-     * one-way direction (contraflow).
-     */
     private List<StepInstruction> buildSteps(ResponsePath path, boolean isEmergency) {
         InstructionList instructions = path.getInstructions();
 
-        // Retrieve car_access PathDetails (present only for emergency routes)
         Map<String, List<PathDetail>> allDetails = path.getPathDetails();
         List<PathDetail> carAccessDetails = (isEmergency && allDetails != null)
                 ? allDetails.getOrDefault("car_access", Collections.emptyList())
                 : Collections.emptyList();
 
         List<StepInstruction> steps = new ArrayList<>(instructions.size());
-        int ptIdx = 0; // running index into path.getPoints()
+        int ptIdx = 0;
 
         for (int i = 0; i < instructions.size(); i++) {
-            Instruction instr = instructions.get(i);
-            int segSize = instr.getPoints().size();
-            int segEnd  = ptIdx + Math.max(segSize - 1, 0);
+            Instruction instr   = instructions.get(i);
+            int segSize         = instr.getPoints().size();
+            int segEnd          = ptIdx + Math.max(segSize - 1, 0);
+            double distanceTo   = (i == 0) ? 0.0 : instructions.get(i - 1).getDistance();
 
-            // Distance the driver travels BEFORE this maneuver = previous segment's length
-            double distanceTo = (i == 0) ? 0.0 : instructions.get(i - 1).getDistance();
-
-            // Contraflow: any PathDetail in [ptIdx, segEnd] with car_access=false
             boolean contraflow = false;
             if (isEmergency) {
                 for (PathDetail detail : carAccessDetails) {
@@ -260,7 +189,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
                 }
             }
 
-            // Extract roundabout exit number (only present on USE_ROUNDABOUT instructions)
             int exitNumber = (instr instanceof RoundaboutInstruction)
                     ? ((RoundaboutInstruction) instr).getExitNumber()
                     : 0;
@@ -273,33 +201,16 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return steps;
     }
 
-    // -------------------------------------------------------------------------
-    // Time calculation
-    // -------------------------------------------------------------------------
-
-    /**
-     * Calculates estimated travel time:
-     *
-     * Routine:   drive_time_at_speed_limit  + 20 s/intersection  + 90 s/signalised-intersection
-     * Emergency: drive_time (encoded: 1.2× with-traffic, 0.7× contraflow) + 10/30 s/intersection
-     */
     private long calculateTime(ResponsePath path, boolean isEmergency) {
-        // Base drive time from GraphHopper (already reflects actual ambulance speeds for emergency)
         double driveTimeSec = path.getTime() / 1000.0;
 
-        // Emergency speeds are already encoded in the CustomModel (1.2× with-traffic,
-        // 0.7× contraflow), so path.getTime() already reflects real ambulance travel time.
-
-        // Intersection penalties
         InstructionList instructions = path.getInstructions();
         double intersectionDelay = 0.0;
 
-        // Index 0 = START, last = FINISH — no intersection penalty at either
         for (int i = 1; i < instructions.size() - 1; i++) {
             Instruction instr = instructions.get(i);
             int sign = instr.getSign();
 
-            // Roundabouts have continuous yielding flow — no hard stop penalty
             if (sign == Instruction.USE_ROUNDABOUT || sign == Instruction.LEAVE_ROUNDABOUT) continue;
 
             PointList pts = instr.getPoints();
@@ -317,10 +228,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return Math.round(driveTimeSec + intersectionDelay);
     }
 
-    // -------------------------------------------------------------------------
-    // Internal setup
-    // -------------------------------------------------------------------------
-
     private FASTGraphHopper buildHopper(String osmFile, String graphCacheDir, DualCarriagewayDetector dualDetector) {
         FASTGraphHopper gh = new FASTGraphHopper();
         gh.setOSMFile(osmFile);
@@ -337,7 +244,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         gh.setOSMFile(osmFile);
         gh.setGraphHopperLocation(graphCacheDir);
 
-        // --- ambulance_routine profile ---
         CustomModel routineModel = new CustomModel()
                 .setDistanceInfluence(15.0)
                 .addToPriority(Statement.If("surface == UNPAVED", Statement.Op.MULTIPLY, "0"))
@@ -348,11 +254,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
                 .setWeighting("custom")
                 .setCustomModel(routineModel);
 
-        // --- ambulance_emergency profile ---
-        // Speed rules (applied in order):
-        //   1. Limit to ambulance_average_speed (OSM speed limit)
-        //   2. car_access=true  → ×1.2 (with-traffic: 20% above limit)
-        //   3. car_access=false → ×0.7 (contraflow: caution, max 70% of posted limit)
         CustomModel emergencyModel = new CustomModel()
                 .setDistanceInfluence(0.0)
                 .addToPriority(Statement.If("surface == UNPAVED", Statement.Op.MULTIPLY, "0"))

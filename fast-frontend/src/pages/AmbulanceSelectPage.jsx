@@ -49,7 +49,6 @@ export default function AmbulanceSelectPage() {
       direction: 'rtl',
     }}>
 
-      {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: 36 }}>
         <div style={{ fontSize: 52, marginBottom: 12, lineHeight: 1 }}>🚑</div>
         <div style={{ color: 'white', fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
@@ -60,7 +59,6 @@ export default function AmbulanceSelectPage() {
         </div>
       </div>
 
-      {/* Content */}
       <div style={{ width: '100%', maxWidth: 420 }}>
 
         {error && (
@@ -110,7 +108,6 @@ export default function AmbulanceSelectPage() {
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    {/* Number badge */}
                     <div style={{
                       width: 52, height: 52, borderRadius: 14, flexShrink: 0,
                       background: isMine
@@ -122,7 +119,6 @@ export default function AmbulanceSelectPage() {
                       {isAssigning ? '⏳' : (amb.ambulanceNumber || amb.id.replace('amb-', ''))}
                     </div>
 
-                    {/* Info */}
                     <div style={{ flex: 1 }}>
                       <div style={{ color: 'white', fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
                         אמבולנס {amb.ambulanceNumber || amb.id.replace('amb-', '')}
@@ -133,7 +129,6 @@ export default function AmbulanceSelectPage() {
                       </div>
                     </div>
 
-                    {/* Arrow */}
                     <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 18, flexShrink: 0 }}>
                       {isAssigning ? '' : '›'}
                     </div>
@@ -144,7 +139,6 @@ export default function AmbulanceSelectPage() {
           </div>
         )}
 
-        {/* Logout */}
         <button
           onClick={() => { sessionStorage.removeItem('fastAuth'); localStorage.removeItem('fastAuth'); navigate('/'); }}
           style={{

@@ -3,9 +3,9 @@ package core.models;
 public class User {
     private String id;
     private String username;
-    private String password;   // plain text (student project)
-    private String role;       // "driver" | "dispatcher" | "manager"
-    private String ambulanceId; // null unless role=driver
+    private String password;
+    private String role;
+    private String ambulanceId;
     private String displayName;
 
     public User() {}

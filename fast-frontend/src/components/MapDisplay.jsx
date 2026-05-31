@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-// ── Custom markers ─────────────────────────────────────────────────────────────
 const ambulanceIcon = L.divIcon({
   className: '',
   html: `<div style="
@@ -26,7 +25,6 @@ const destIcon = L.divIcon({
   iconSize:[32,32], iconAnchor:[16,32], popupAnchor:[0,-34],
 });
 
-// Proper SVG traffic-light icon (no emoji — reliable cross-browser rendering)
 const TRAFFIC_LIGHT_SVG = `
   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="22" viewBox="0 0 14 22">
     <rect x="1" y="1" width="12" height="20" rx="3" fill="#1a1a1a" stroke="#444" stroke-width="0.5"/>
@@ -41,7 +39,6 @@ const signalIcon = L.divIcon({
   iconSize:[14,22], iconAnchor:[7,22], popupAnchor:[0,-24],
 });
 
-// ── Traffic congestion colors ──────────────────────────────────────────────────
 const TRAFFIC_COLOR = { LIGHT: '#ffd60a', MEDIUM: '#ff9500', HEAVY: '#ff3b30' };
 const TRAFFIC_LABEL = { LIGHT: 'פקק קל', MEDIUM: 'פקק בינוני', HEAVY: 'פקק כבד' };
 
@@ -62,7 +59,6 @@ function TrafficLayer({ segments }) {
   });
 }
 
-// ── Auto-fit bounds ────────────────────────────────────────────────────────────
 function AutoFit({ startPos, endPos, routeCoordinates }) {
   const map = useMap();
   useEffect(() => {
@@ -77,7 +73,6 @@ function AutoFit({ startPos, endPos, routeCoordinates }) {
   return null;
 }
 
-// ── Traffic signal layer — only visible when zoomed in (≥ 15) ─────────────────
 const SIGNAL_MIN_ZOOM = 15;
 
 function SignalLayer({ signals }) {
@@ -99,7 +94,6 @@ function SignalLayer({ signals }) {
   ));
 }
 
-// ── Main map component ─────────────────────────────────────────────────────────
 function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
@@ -119,10 +113,8 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
 
       <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} />
 
-      {/* Traffic congestion overlay */}
       <TrafficLayer segments={trafficSegments} />
 
-      {/* Traffic signals — zoom-aware */}
       <SignalLayer signals={trafficSignals} />
 
       {startPos && <Marker position={startPos} icon={ambulanceIcon}><Popup>Start</Popup></Marker>}

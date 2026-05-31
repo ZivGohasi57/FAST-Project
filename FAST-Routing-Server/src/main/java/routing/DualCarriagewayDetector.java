@@ -8,34 +8,14 @@ import javax.xml.parsers.SAXParserFactory;
 import java.io.File;
 import java.util.*;
 
-/**
- * Detects dual-carriageway (divided) roads in the OSM dataset.
- *
- * A one-way road is classified as a dual carriageway if there is another one-way
- * road within PARALLEL_MAX_DIST_M metres whose direction is approximately opposite
- * (180° ± PARALLEL_ANGLE_TOL_DEG). This matches the classic divided-road pattern
- * where each carriageway is mapped as a separate one-way line.
- *
- * This is used by AmbulanceAccessParser to enforce the rule:
- *   "contraflow is only permitted when there is NO parallel road carrying traffic
- *    in the normal direction AND the road is an urban road."
- *
- * Usage: call DualCarriagewayDetector.build(osmFile) once at startup.
- */
 public class DualCarriagewayDetector extends DefaultHandler {
 
-    // ── Tuning parameters ─────────────────────────────────────────────────────
-    /** Max distance (m) between two carriageways to be considered parallel. */
     private static final double PARALLEL_MAX_DIST_M    = 40.0;
-    /** Directions must differ from 180° by less than this (degrees). */
     private static final double PARALLEL_ANGLE_TOL_DEG = 45.0;
-    /** Spatial grid cell size (m). Must be > PARALLEL_MAX_DIST_M. */
-    private static final double CELL_M  = 60.0;
+    private static final double CELL_M   = 60.0;
     private static final double CELL_LAT = CELL_M / 111_320.0;
-    // ~32° N (central Israel) for longitude normalisation
     private static final double CELL_LON = CELL_M / (111_320.0 * Math.cos(Math.toRadians(32.0)));
 
-    /** Roads on which an ambulance might drive (matches GraphHopper car profile). */
     private static final Set<String> MOTOR_HIGHWAYS;
     static {
         MOTOR_HIGHWAYS = new HashSet<>(Arrays.asList(
@@ -47,7 +27,6 @@ public class DualCarriagewayDetector extends DefaultHandler {
         ));
     }
 
-    // ── SAX state ─────────────────────────────────────────────────────────────
     private final Map<Long, double[]> nodeCoords = new HashMap<>(2_000_000);
     private boolean inWay   = false;
     private long    curWayId;
@@ -55,13 +34,8 @@ public class DualCarriagewayDetector extends DefaultHandler {
     private String curHighway = "";
     private String curOneway  = "no";
 
-    // Segments accumulated during parse (one per one-way motor way)
-    private final List<SegmentData> segments = new ArrayList<>();
-
-    // Final result: way IDs that have a parallel carriageway
-    private final Set<Long> dualWayIds = new HashSet<>();
-
-    // ── Public API ────────────────────────────────────────────────────────────
+    private final List<SegmentData> segments  = new ArrayList<>();
+    private final Set<Long>         dualWayIds = new HashSet<>();
 
     public static DualCarriagewayDetector build(String osmFile) {
         DualCarriagewayDetector handler = new DualCarriagewayDetector();
@@ -76,18 +50,14 @@ public class DualCarriagewayDetector extends DefaultHandler {
         } catch (Exception e) {
             System.err.println("[DualCarriageway] Parse error: " + e.getMessage());
         }
-        // Free node coordinates — no longer needed after detection
         handler.nodeCoords.clear();
         handler.segments.clear();
         return handler;
     }
 
-    /** Returns true when the OSM way has a parallel counterpart (dual carriageway). */
     public boolean isDual(long wayId) {
         return dualWayIds.contains(wayId);
     }
-
-    // ── SAX callbacks ─────────────────────────────────────────────────────────
 
     @Override
     public void startElement(String uri, String localName, String qName, Attributes atts) {
@@ -125,8 +95,6 @@ public class DualCarriagewayDetector extends DefaultHandler {
         }
     }
 
-    // ── Way processing ────────────────────────────────────────────────────────
-
     private void processWay() {
         if (!MOTOR_HIGHWAYS.contains(curHighway)) return;
         if (curNodes.size() < 2) return;
@@ -147,10 +115,7 @@ public class DualCarriagewayDetector extends DefaultHandler {
         segments.add(new SegmentData(curWayId, midLat, midLon, bear));
     }
 
-    // ── Parallel detection ────────────────────────────────────────────────────
-
     private void detectDuals() {
-        // Build spatial grid
         Map<Long, List<SegmentData>> grid = new HashMap<>();
         for (SegmentData seg : segments) {
             long key = cellKey(seg.midLat, seg.midLon);
@@ -158,7 +123,6 @@ public class DualCarriagewayDetector extends DefaultHandler {
             grid.get(key).add(seg);
         }
 
-        // For each segment, check neighbourhood for an opposing parallel
         for (SegmentData seg : segments) {
             if (hasParallel(seg, grid)) {
                 dualWayIds.add(seg.wayId);
@@ -185,17 +149,13 @@ public class DualCarriagewayDetector extends DefaultHandler {
     }
 
     private static boolean isOppositeParallel(SegmentData a, SegmentData b) {
-        // Approximate Euclidean distance in metres
         double dLat = (a.midLat - b.midLat) * 111_320.0;
         double dLon = (a.midLon - b.midLon) * 111_320.0 * Math.cos(Math.toRadians(a.midLat));
         if (dLat * dLat + dLon * dLon > PARALLEL_MAX_DIST_M * PARALLEL_MAX_DIST_M) return false;
 
-        // Directions must differ by ~180°
         double diff = Math.abs((a.bearing - b.bearing + 360.0) % 360.0 - 180.0);
         return diff <= PARALLEL_ANGLE_TOL_DEG;
     }
-
-    // ── Geometry helpers ──────────────────────────────────────────────────────
 
     private static long cellKey(double lat, double lon) {
         int row = (int) Math.floor(lat / CELL_LAT);
@@ -212,8 +172,6 @@ public class DualCarriagewayDetector extends DefaultHandler {
                  - Math.sin(lat1r) * Math.cos(lat2r) * Math.cos(dLon);
         return Math.toDegrees(Math.atan2(y, x));
     }
-
-    // ── Data class ────────────────────────────────────────────────────────────
 
     private static class SegmentData {
         final long   wayId;

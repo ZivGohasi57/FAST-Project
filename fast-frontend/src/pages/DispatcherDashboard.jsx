@@ -28,7 +28,7 @@ function AutoFit({ points }) {
     if (!points?.length) return;
     if (points.length === 1) { map.setView(points[0], 14); return; }
     map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 15 });
-  }, [JSON.stringify(points)]); // eslint-disable-line
+  }, [JSON.stringify(points)]);
   return null;
 }
 
@@ -95,7 +95,6 @@ export default function DispatcherDashboard() {
         .then(r => {
           const active = r.data.filter(c => c.status === 'active' || c.status === 'cancel_requested');
           setMissions(active);
-          // On first load, restore activeCase from Firestore if session was lost (e.g. page refresh)
           if (!missionsFetchedRef.current) {
             missionsFetchedRef.current = true;
             if (active.length > 0) {
@@ -218,7 +217,6 @@ export default function DispatcherDashboard() {
   return (
     <div style={{ display: 'flex', height: '100dvh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', direction: 'rtl' }}>
 
-      {/* ── PANEL ── */}
       <div style={panelStyle}>
         <div style={{ background: '#1a1a2e', color: 'white', paddingTop: 'calc(env(safe-area-inset-top, 0px) + 14px)', paddingBottom: 14, paddingLeft: 18, paddingRight: 18, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ fontSize: 22 }}>🚑</span>
@@ -245,7 +243,6 @@ export default function DispatcherDashboard() {
           </div>
         )}
 
-        {/* Tab bar */}
         <div style={{ display: 'flex', borderBottom: '1px solid #e8eaed', flexShrink: 0 }}>
           {[
             { id: 'new',      label: 'קריאה חדשה',    icon: '➕' },
@@ -428,7 +425,6 @@ export default function DispatcherDashboard() {
                 borderRadius: 14, padding: '13px 14px',
                 animation: m.status === 'cancel_requested' ? 'cancelPulse 1.8s ease-in-out infinite' : 'none',
               }}>
-                {/* Header row */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 700, fontSize: 12, color: '#999' }}>{m.id}</span>
                   {m.status === 'cancel_requested' && (
@@ -447,13 +443,11 @@ export default function DispatcherDashboard() {
                     {m.urgency === 'emergency' ? '🚨 חירום' : '🚗 שגרה'}
                   </span>
                 </div>
-                {/* Details */}
                 <div style={{ fontSize: 13, color: '#444', lineHeight: 1.9, marginBottom: 10 }}>
                   <div>📍 {m.address}</div>
                   <div>🚑 אמב. {ambulances.find(a => a.id === m.assignedAmbulanceId)?.ambulanceNumber || m.assignedAmbulanceId?.replace('amb-', '') || m.assignedDriverName}</div>
                   {m.patientDetails && <div>👤 {m.patientDetails}</div>}
                 </div>
-                {/* Cancel button */}
                 <button
                   onClick={() => handleCancelCase(m.id)}
                   style={{
@@ -479,7 +473,6 @@ export default function DispatcherDashboard() {
         }
       `}</style>
 
-      {/* ── MAP ── */}
       <div style={mapStyle}>
         {isMobile && (
           <button onClick={() => setShowMap(false)} style={{

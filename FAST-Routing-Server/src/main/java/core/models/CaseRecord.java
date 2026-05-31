@@ -7,16 +7,15 @@ public class CaseRecord {
     private double lon;
     private String description;
     private String patientDetails;
-    private String urgency;           // "routine" | "emergency"
+    private String urgency;
     private String notes;
     private String assignedAmbulanceId;
     private String assignedDriverName;
-    private String status;            // "pending" | "active" | "completed"
+    private String status;
     private long   createdAt;
     private long   arrivalTime;
 
     public CaseRecord() {}
-    // full getters/setters for all fields
     public String getId()                       { return id; }
     public void   setId(String v)               { id = v; }
     public String getAddress()                  { return address; }

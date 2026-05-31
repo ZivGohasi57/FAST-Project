@@ -105,7 +105,7 @@ export default function ManagerSuite() {
     if (tab === 'ambulances')  fetchAmbulances();
     if (tab === 'events')      fetchCases();
     if (tab === 'zones')       fetchZones();
-  }, [tab]); // eslint-disable-line
+  }, [tab]);
 
   const fetchUsers      = () => axios.get(`${API_BASE}/api/users`).then(r => setUsers(r.data)).catch(() => {});
   const fetchAmbulances = () => axios.get(`${API_BASE}/api/ambulances`).then(r => setAmbulances(r.data)).catch(() => {});
@@ -196,7 +196,6 @@ export default function ManagerSuite() {
 
   const filteredCases = cases.filter(c => eventFilter === 'all' || c.status === eventFilter);
 
-  // ── Layout wrappers ────────────────────────────────────────────────────────
   const Sidebar = () => (
     <div style={{
       ...(isMobile
@@ -223,13 +222,10 @@ export default function ManagerSuite() {
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100dvh', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', direction: 'rtl' }}>
 
-      {/* Sidebar: left on desktop, top on mobile (we put it at bottom for mobile) */}
       {!isMobile && <Sidebar />}
 
-      {/* Main area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f8f9fb', minHeight: 0 }}>
 
-        {/* Header */}
         <div style={{ background: 'white', borderBottom: '1px solid #e8eaed', paddingTop: isMobile ? 'calc(env(safe-area-inset-top, 0px) + 11px)' : 'calc(env(safe-area-inset-top, 0px) + 13px)', paddingBottom: isMobile ? 11 : 13, paddingLeft: isMobile ? 16 : 22, paddingRight: isMobile ? 16 : 22, display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           <span style={{ fontSize: 18 }}>{TABS.find(t => t.id === tab)?.icon}</span>
           <div style={{ fontWeight: 700, fontSize: 16 }}>{TABS.find(t => t.id === tab)?.label}</div>
@@ -237,11 +233,9 @@ export default function ManagerSuite() {
 
         <div style={{ flex: 1, overflow: tab === 'zones' ? 'hidden' : 'auto', padding: tab === 'zones' ? 0 : (isMobile ? 14 : 22), minHeight: 0 }}>
 
-          {/* ══ USERS TAB ══ */}
           {tab === 'users' && (
             <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
 
-              {/* Add user form — on mobile comes first */}
               {isMobile && (
                 <div style={{ width: '100%', ...s.card }}>
                   <div style={s.cardTitle}>הוסף משתמש</div>
@@ -249,7 +243,6 @@ export default function ManagerSuite() {
                 </div>
               )}
 
-              {/* Table */}
               <div style={{ flex: 1, ...s.card, overflowX: 'auto' }}>
                 <div style={s.cardTitle}>משתמשים פעילים ({users.length})</div>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 380 : 'unset' }}>
@@ -276,7 +269,6 @@ export default function ManagerSuite() {
                 </table>
               </div>
 
-              {/* Add user form — desktop only on the right */}
               {!isMobile && (
                 <div style={{ width: 290, ...s.card, flexShrink: 0 }}>
                   <div style={s.cardTitle}>הוסף משתמש</div>
@@ -286,11 +278,9 @@ export default function ManagerSuite() {
             </div>
           )}
 
-          {/* ══ AMBULANCES TAB ══ */}
           {tab === 'ambulances' && (
             <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, alignItems: 'flex-start' }}>
 
-              {/* Add form — mobile first */}
               {isMobile && (
                 <div style={{ width: '100%', ...s.card }}>
                   <div style={s.cardTitle}>הוסף אמבולנס</div>
@@ -298,7 +288,6 @@ export default function ManagerSuite() {
                 </div>
               )}
 
-              {/* List */}
               <div style={{ flex: 1, ...s.card, overflowX: 'auto' }}>
                 <div style={s.cardTitle}>אמבולנסים ({ambulances.length})</div>
                 {ambulances.length === 0 ? (
@@ -373,7 +362,6 @@ export default function ManagerSuite() {
                 )}
               </div>
 
-              {/* Add form — desktop */}
               {!isMobile && (
                 <div style={{ width: 260, ...s.card, flexShrink: 0 }}>
                   <div style={s.cardTitle}>הוסף אמבולנס</div>
@@ -383,7 +371,6 @@ export default function ManagerSuite() {
             </div>
           )}
 
-          {/* ══ EVENTS TAB ══ */}
           {tab === 'events' && (
             <div>
               <div style={{ display: 'flex', gap: 6, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -451,11 +438,9 @@ export default function ManagerSuite() {
             </div>
           )}
 
-          {/* ══ ZONES TAB ══ */}
           {tab === 'zones' && (
             <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%' }}>
 
-              {/* Zones sidebar */}
               <div style={{
                 width: isMobile ? '100%' : 300,
                 maxHeight: isMobile ? '45vh' : 'unset',
@@ -494,11 +479,9 @@ export default function ManagerSuite() {
                     <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>✅ הגדר אזור חדש</div>
                     {zoneError && <div style={{ color: '#c0392b', fontSize: 12, marginBottom: 8 }}>⚠️ {zoneError}</div>}
 
-                    {/* Name */}
                     <input value={zoneName} onChange={e => setZoneName(e.target.value)}
                       placeholder='שם האזור (לדוג׳: מרכז העיר)' style={{ ...s.input, marginBottom: 10 }} autoFocus />
 
-                    {/* Zone type */}
                     <div style={{ marginBottom: 10 }}>
                       <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#666', marginBottom: 6 }}>סוג הגבלה</label>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -515,7 +498,6 @@ export default function ManagerSuite() {
                       </div>
                     </div>
 
-                    {/* Daily schedule */}
                     {zoneType === 'daily' && (
                       <div style={{ background: '#fff3e0', border: '1px solid #ff9500', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#e65100', marginBottom: 8 }}>שעות חסימה יומיות</div>
@@ -527,7 +509,6 @@ export default function ManagerSuite() {
                       </div>
                     )}
 
-                    {/* One-time schedule */}
                     {zoneType === 'once' && (
                       <div style={{ background: '#e3f2fd', border: '1px solid #90caf9', borderRadius: 8, padding: '10px 12px', marginBottom: 10 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#1565c0', marginBottom: 8 }}>תקופת האירוע</div>
@@ -559,7 +540,7 @@ export default function ManagerSuite() {
                   const typeColor = z.type === 'daily' ? { bg: '#fff3e0', border: '#ff9500', icon: '🟠' }
                                   : z.type === 'once'  ? { bg: '#e3f2fd', border: '#90caf9', icon: '🔵' }
                                   :                      { bg: '#fff0ef', border: '#ffd5d0', icon: '🔴' };
-                  const active = z.isCurrentlyActive !== undefined ? z.isCurrentlyActive : true; // JS objects won't have this method
+                  const active = z.isCurrentlyActive !== undefined ? z.isCurrentlyActive : true;
                   return (
                     <div key={z.id} style={{ background: typeColor.bg, border: `1px solid ${typeColor.border}`, borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                       <span style={{ fontSize: 16, marginTop: 2 }}>{typeColor.icon}</span>
@@ -581,7 +562,6 @@ export default function ManagerSuite() {
                 })}
               </div>
 
-              {/* Map */}
               <div style={{ flex: 1, minHeight: isMobile ? '55vw' : 'unset' }}>
                 <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: (drawMode || corner1) ? 'crosshair' : 'grab' }}>
                   <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />
@@ -607,13 +587,10 @@ export default function ManagerSuite() {
         </div>
       </div>
 
-      {/* Bottom nav — mobile only */}
       {isMobile && <Sidebar />}
 
-      {/* ── Location Pick Overlay ── */}
       {locationPickAmbId && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-          {/* Header bar */}
           <div style={{ background: '#1a1a2e', color: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flexShrink: 0 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>
               📍 בחר מיקום — אמב. {ambulances.find(a => a.id === locationPickAmbId)?.ambulanceNumber || locationPickAmbId}
@@ -645,7 +622,6 @@ export default function ManagerSuite() {
             </div>
           )}
 
-          {/* Map */}
           <div style={{ flex: 1, minHeight: 0 }}>
             <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: 'crosshair' }}>
               <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />

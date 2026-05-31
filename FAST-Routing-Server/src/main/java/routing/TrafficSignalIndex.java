@@ -9,10 +9,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Loads all highway=traffic_signals nodes from the OSM file at startup.
- * Used by RouteTimeCalculator to distinguish signalised from unsignalised intersections.
- */
 public class TrafficSignalIndex {
 
     private final double[] lats;
@@ -63,13 +59,7 @@ public class TrafficSignalIndex {
         System.out.printf("[FAST] TrafficSignalIndex: loaded %d traffic signal nodes%n", lats.length);
     }
 
-    /**
-     * Returns true if any traffic_signals node lies within radiusMeters of (lat, lon).
-     * Uses a bounding-box pre-filter for speed; exact distance check is skipped since
-     * the tolerance is small (15 m) and the approximation is sufficient at city scale.
-     */
     public boolean hasSignalNear(double lat, double lon, double radiusMeters) {
-        // 1 degree latitude ≈ 111 320 m; longitude degree shrinks by cos(lat)
         double dLat = radiusMeters / 111_320.0;
         double dLon = radiusMeters / (111_320.0 * Math.cos(Math.toRadians(lat)));
 
@@ -81,7 +71,6 @@ public class TrafficSignalIndex {
         return false;
     }
 
-    /** Returns all loaded traffic-signal nodes as Coordinate objects. */
     public List<core.models.Coordinate> getAllSignals() {
         List<core.models.Coordinate> result = new ArrayList<>(lats.length);
         for (int i = 0; i < lats.length; i++) {

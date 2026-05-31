@@ -38,7 +38,6 @@ export default function LoginPage() {
         background: 'white', borderRadius: 20, padding: '40px 36px',
         boxShadow: '0 8px 40px rgba(0,0,0,0.12)', width: '100%', maxWidth: 380,
       }}>
-        {/* Logo / Title */}
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 48, marginBottom: 8 }}>🚑</div>
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#1a1a2e' }}>FAST</h1>
@@ -46,7 +45,6 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleLogin}>
-          {/* Username */}
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 6 }}>
               שם משתמש
@@ -65,7 +63,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Password */}
           <div style={{ marginBottom: 24 }}>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#555', marginBottom: 6 }}>
               סיסמה
@@ -112,7 +109,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Help hint */}
         <div style={{ marginTop: 20, textAlign: 'center', color: '#bbb', fontSize: 11 }}>
           driver1 / dispatcher1 / manager1 — סיסמה: 123
         </div>
