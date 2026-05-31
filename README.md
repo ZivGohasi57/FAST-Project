@@ -168,16 +168,19 @@ Key engineering decisions include:
 
 ---
 
-## ▶️ Running Locally
+## ▶️ Deployment
+
+The system is deployed on **Render** and accessible at:
+
+**https://fast-frontend.onrender.com/**
+
+The Java routing server and the React frontend are both hosted as Render services. Environment variables (`FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_PROJECT_ID`) are configured in the Render dashboard.
+
+### Running Locally
 
 **1. Start the Java API server** (from `FAST-Routing-Server/`):
 ```bash
-# Using Maven
 mvn compile exec:java -Dexec.mainClass="api.controllers.RoutingController"
-
-# Or manually (macOS/Linux)
-javac -cp ".:lib/*" -d . $(find . -name "*.java")
-java -cp ".:lib/*" api.controllers.RoutingController
 ```
 Server runs on **http://localhost:8082**
 
