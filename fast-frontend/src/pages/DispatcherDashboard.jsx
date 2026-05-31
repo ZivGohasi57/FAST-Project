@@ -387,9 +387,18 @@ export default function DispatcherDashboard() {
               {updateSent ? '✓ נשלח' : '📤 שלח עדכון לצוות'}
             </button>
             <div style={{ width: '100%', height: 1, background: '#e8eaed' }} />
-            <button onClick={handleComplete} style={{ ...s.btn, background: '#1a1a2e', color: 'white', cursor: 'pointer' }}>
-              ✅ סיים קריאה
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={handleComplete} style={{ ...s.btn, flex: 1, background: '#1a1a2e', color: 'white', cursor: 'pointer' }}>
+                ✅ סיים קריאה
+              </button>
+              <button onClick={() => activeCase && handleCancelCase(activeCase.id)} style={{
+                ...s.btn, flex: 1,
+                background: '#fff0ef', border: '1.5px solid #ff3b30',
+                color: '#ff3b30', cursor: 'pointer',
+              }}>
+                ✕ בטל קריאה
+              </button>
+            </div>
           </div>
         )}
         {tab === 'missions' && (

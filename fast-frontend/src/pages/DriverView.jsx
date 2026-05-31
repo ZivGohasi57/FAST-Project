@@ -288,8 +288,11 @@ export default function DriverView() {
   const [startPos,  setStartPos]  = useState(null);
   const [endPos,    setEndPos]    = useState(null);
 
-  const endInputRef    = useRef(null);
-  const prevCaseIdRef  = useRef(null);
+  const [locationLocked, setLocationLocked] = useState(false);
+
+  const endInputRef       = useRef(null);
+  const prevCaseIdRef     = useRef(null);
+  const locationLockedRef = useRef(false);
   const [newCaseAlert,  setNewCaseAlert]  = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
 
@@ -300,16 +303,31 @@ export default function DriverView() {
       .catch(() => {});
   }, []);
 
-  // Load current ambulance status on mount
+  // Poll own ambulance every 5s to sync position when manager has locked it
   useEffect(() => {
     const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     if (!ambId) return;
-    axios.get(`${API_BASE}/api/ambulances`)
-      .then(r => {
-        const amb = r.data.find(a => a.id === ambId);
-        if (amb && amb.status !== 'busy') setDriverStatus(amb.status);
-      }).catch(() => {});
+    const poll = () => {
+      axios.get(`${API_BASE}/api/ambulances`)
+        .then(r => {
+          const amb = r.data.find(a => a.id === ambId);
+          if (!amb) return;
+          // Update driver status (unless on active case)
+          if (amb.status !== 'busy') setDriverStatus(amb.status);
+          // Sync manager-locked position to driver's map
+          const locked = !!amb.locationLocked;
+          locationLockedRef.current = locked;
+          setLocationLocked(locked);
+          if (locked) {
+            setStartPos({ lat: amb.lat, lon: amb.lon, label: '📍 מיקום נעול' });
+            setStartText('📍 מיקום (נעול ע"י מנהל)');
+          }
+        }).catch(() => {});
+    };
+    poll();
+    const iv = setInterval(poll, 5000);
+    return () => clearInterval(iv);
   }, []);
 
   // Auto-GPS: set start position from device and update server every 30s
@@ -317,6 +335,7 @@ export default function DriverView() {
     const auth  = JSON.parse(sessionStorage.getItem('fastAuth') || localStorage.getItem('fastAuth') || '{}');
     const ambId = auth.ambulanceId;
     const update = () => {
+      if (locationLockedRef.current) return; // manager locked our position — skip GPS
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(({ coords }) => {
         const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
@@ -736,6 +755,20 @@ export default function DriverView() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 2px' }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: '#e0e0e0' }} />
         </div>
+
+        {/* ── LOCATION LOCK NOTICE ── */}
+        {locationLocked && (
+          <div style={{
+            margin: '0 14px 8px',
+            background: '#fff3e0', border: '1.5px solid #ff9500',
+            borderRadius: 10, padding: '8px 12px',
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 12, color: '#e65100', fontWeight: 600,
+          }}>
+            <span style={{ fontSize: 16 }}>🔒</span>
+            מיקום נשלט ע"י המנהל — הניווט מבוסס על מיקום זה
+          </div>
+        )}
 
         {/* ── ROUTE INFO strip ── */}
         {routeInfo && (
