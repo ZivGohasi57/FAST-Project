@@ -26,6 +26,7 @@ public class RoutingController {
         HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
         server.createContext("/api/route",      new RouteHandler());
         server.createContext("/api/signals",    new SignalsHandler());
+        server.createContext("/api/traffic",    new TrafficHandler());
         server.createContext("/api/auth/login", new LoginHandler());
         server.createContext("/api/ambulances", new AmbulanceHandler());
         server.createContext("/api/cases",      new CaseHandler());
@@ -132,6 +133,15 @@ public class RoutingController {
         }
     }
 
+    static class TrafficHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            if (handleOptions(ex)) return;
+            if (!"GET".equals(ex.getRequestMethod())) { sendStatus(ex, 405); return; }
+            sendJson(ex, ENGINE_CLIENT.getTrafficOverlay());
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // Auth
     // ─────────────────────────────────────────────────────────────────────
@@ -184,7 +194,7 @@ public class RoutingController {
                 String ambulanceNumber = json.get("ambulanceNumber").getAsString().trim();
                 if (ambulanceNumber.isEmpty()) { sendStatus(ex, 400); return; }
                 String ambId = "amb-" + ambulanceNumber;
-                AmbulanceInfo a = new AmbulanceInfo(ambId, "", "", 32.1668, 34.9201, "available");
+                AmbulanceInfo a = new AmbulanceInfo(ambId, "", "", 32.1668, 34.9201, "offline");
                 a.setAmbulanceNumber(ambulanceNumber);
                 DS.putAmbulance(a);
                 sendJson(ex, a);

@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Polyline, Marker, Popup, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap } from 'react-leaflet';
 import { useEffect, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -41,6 +41,27 @@ const signalIcon = L.divIcon({
   iconSize:[14,22], iconAnchor:[7,22], popupAnchor:[0,-24],
 });
 
+// ── Traffic congestion colors ──────────────────────────────────────────────────
+const TRAFFIC_COLOR = { LIGHT: '#ffd60a', MEDIUM: '#ff9500', HEAVY: '#ff3b30' };
+const TRAFFIC_LABEL = { LIGHT: 'פקק קל', MEDIUM: 'פקק בינוני', HEAVY: 'פקק כבד' };
+
+function TrafficLayer({ segments }) {
+  if (!segments?.length) return null;
+  return segments.map((seg, i) => {
+    const color = TRAFFIC_COLOR[seg.level] ?? '#ff9500';
+    const positions = seg.points.map(p => [p[0], p[1]]);
+    return (
+      <Polyline key={i} positions={positions} color={color} weight={5} opacity={0.80}>
+        <Tooltip sticky>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>{TRAFFIC_LABEL[seg.level] ?? seg.level}</span>
+          <br />
+          <span style={{ fontSize: 12 }}>מהירות ממוצעת: {seg.avgSpeedKmh} קמ&quot;ש</span>
+        </Tooltip>
+      </Polyline>
+    );
+  });
+}
+
 // ── Auto-fit bounds ────────────────────────────────────────────────────────────
 function AutoFit({ startPos, endPos, routeCoordinates }) {
   const map = useMap();
@@ -79,7 +100,7 @@ function SignalLayer({ signals }) {
 }
 
 // ── Main map component ─────────────────────────────────────────────────────────
-function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals }) {
+function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
 
@@ -97,6 +118,9 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       />
 
       <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} />
+
+      {/* Traffic congestion overlay */}
+      <TrafficLayer segments={trafficSegments} />
 
       {/* Traffic signals — zoom-aware */}
       <SignalLayer signals={trafficSignals} />

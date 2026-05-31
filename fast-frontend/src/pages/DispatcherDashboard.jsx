@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import { API_BASE } from '../config.js';
 const NOMINATIM  = 'https://nominatim.openstreetmap.org/search';
 const MAP_CENTER = [32.1501, 34.8914];
+const TRAFFIC_COLOR = { LIGHT: '#ffd60a', MEDIUM: '#ff9500', HEAVY: '#ff3b30' };
+const TRAFFIC_LABEL = { LIGHT: 'פקק קל', MEDIUM: 'פקק בינוני', HEAVY: 'פקק כבד' };
 
 const makeAmbIcon = (gradient) => L.divIcon({
   className: '',
@@ -65,6 +67,7 @@ export default function DispatcherDashboard() {
   const [error,         setError]         = useState('');
   const [tab,           setTab]           = useState('new');
   const [missions,      setMissions]      = useState([]);
+  const [trafficSegments, setTrafficSegments] = useState([]);
   const searchTimer        = useRef(null);
   const missionsFetchedRef = useRef(false);
 
@@ -73,6 +76,16 @@ export default function DispatcherDashboard() {
       axios.get(`${API_BASE}/api/ambulances`).then(r => setAmbulances(r.data)).catch(() => {});
     fetch();
     const iv = setInterval(fetch, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    const fetch = () =>
+      axios.get(`${API_BASE}/api/traffic`)
+        .then(r => setTrafficSegments(r.data))
+        .catch(() => {});
+    fetch();
+    const iv = setInterval(fetch, 30000);
     return () => clearInterval(iv);
   }, []);
 
@@ -485,6 +498,16 @@ export default function DispatcherDashboard() {
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           />
           {mapPoints.length > 0 && <AutoFit points={mapPoints} />}
+          {trafficSegments.map((seg, i) => (
+            <Polyline key={i} positions={seg.points.map(p => [p[0], p[1]])}
+              color={TRAFFIC_COLOR[seg.level] ?? '#ff9500'} weight={5} opacity={0.80}>
+              <Tooltip sticky>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{TRAFFIC_LABEL[seg.level] ?? seg.level}</span>
+                <br />
+                <span style={{ fontSize: 12 }}>מהירות ממוצעת: {seg.avgSpeedKmh} קמ&quot;ש</span>
+              </Tooltip>
+            </Polyline>
+          ))}
           {ambulances.map(amb => (
             <Marker key={amb.id} position={[amb.lat, amb.lon]} icon={amb.status === 'available' ? iconAvailable : iconBusy}>
               <Popup><div style={{ direction: 'rtl', minWidth: 130, fontSize: 13 }}>

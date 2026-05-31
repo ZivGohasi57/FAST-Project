@@ -431,6 +431,12 @@ public class DataStore {
     }
 
     public void setAmbulanceStatus(String id, String status) {
+        if ("available".equals(status)) {
+            // Enforce: available requires a driver to be assigned
+            Map<String, Object> doc = getDoc("ambulances", id);
+            String driverId = doc != null ? (String) doc.get("driverId") : null;
+            if (driverId == null || driverId.isEmpty()) return;
+        }
         patchStatus("ambulances", id, status);
     }
 

@@ -273,7 +273,8 @@ export default function DriverView() {
   const [routeCoords,    setRouteCoords]    = useState([]);
   const [routeInfo,      setRouteInfo]      = useState(null);
   const [instructions,   setInstructions]   = useState([]);
-  const [trafficSignals, setTrafficSignals] = useState([]);
+  const [trafficSignals,   setTrafficSignals]   = useState([]);
+  const [trafficSegments,  setTrafficSegments]  = useState([]);
   const [loading,        setLoading]        = useState(false);
   const [error,          setError]          = useState(null);
   const [activeCase,     setActiveCase]     = useState(null);
@@ -305,6 +306,17 @@ export default function DriverView() {
     axios.get(`${API_BASE}/api/signals`)
       .then(res => setTrafficSignals(res.data))
       .catch(() => {});
+  }, []);
+
+  // Poll traffic congestion every 30s (matches simulator tick interval)
+  useEffect(() => {
+    const fetch = () =>
+      axios.get(`${API_BASE}/api/traffic`)
+        .then(res => setTrafficSegments(res.data))
+        .catch(() => {});
+    fetch();
+    const iv = setInterval(fetch, 30000);
+    return () => clearInterval(iv);
   }, []);
 
   // Poll own ambulance every 3s — handles location-lock sync AND case delivery
@@ -555,6 +567,7 @@ export default function DriverView() {
           endPos={endPos     ? [endPos.lat,   endPos.lon]   : null}
           isEmergency={isEmergency}
           trafficSignals={trafficSignals}
+          trafficSegments={trafficSegments}
         />
       </div>
 
