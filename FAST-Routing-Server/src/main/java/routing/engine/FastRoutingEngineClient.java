@@ -2,8 +2,9 @@ package routing.engine;
 
 import com.graphhopper.GHRequest;
 import com.graphhopper.GHResponse;
-import com.graphhopper.GraphHopper;
 import com.graphhopper.GraphHopperConfig;
+import routing.traffic.FASTGraphHopper;
+import routing.traffic.TrafficData;
 import com.graphhopper.ResponsePath;
 import com.graphhopper.config.Profile;
 import com.graphhopper.json.Statement;
@@ -61,7 +62,7 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
     private static final double SIGNAL_RADIUS_M = 20.0;
 
     // ── Fields ────────────────────────────────────────────────────────────────
-    private final GraphHopper hopper;
+    private final FASTGraphHopper hopper;
     private final TrafficSignalIndex signalIndex;
 
     /**
@@ -74,9 +75,12 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         signalIndex = new TrafficSignalIndex(osmFile);
     }
 
-    /** Exposes the signal index so the controller can serve a /api/signals endpoint. */
     public TrafficSignalIndex getSignalIndex() {
         return signalIndex;
+    }
+
+    public TrafficData getTrafficData() {
+        return hopper.getTrafficData();
     }
 
     // -------------------------------------------------------------------------
@@ -272,8 +276,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
     // Internal setup
     // -------------------------------------------------------------------------
 
-    private GraphHopper buildHopper(String osmFile, String graphCacheDir, DualCarriagewayDetector dualDetector) {
-        GraphHopper gh = new GraphHopper();
+    private FASTGraphHopper buildHopper(String osmFile, String graphCacheDir, DualCarriagewayDetector dualDetector) {
+        FASTGraphHopper gh = new FASTGraphHopper();
         gh.setOSMFile(osmFile);
         gh.setGraphHopperLocation(graphCacheDir);
 
