@@ -548,8 +548,8 @@ export default function ManagerSuite() {
               </div>
 
               <div style={{ flex: 1, minHeight: isMobile ? '55vw' : 'unset' }}>
-                <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: (drawMode || corner1) ? 'crosshair' : 'grab' }}>
-                  <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />
+                <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: (drawMode || corner1) ? 'crosshair' : 'grab' }} attributionControl={false}>
+                  <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                   <ZoneDrawer active={drawMode || !!corner1} onPoint={handleMapPoint} />
                   {zones.map(z => {
                     const c = z.type === 'daily' ? '#ff9500' : z.type === 'once' ? '#007aff' : '#ff3b30';
@@ -608,8 +608,8 @@ export default function ManagerSuite() {
           )}
 
           <div style={{ flex: 1, minHeight: 0 }}>
-            <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: 'crosshair' }}>
-              <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" attribution='&copy; OpenStreetMap' />
+            <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: 'crosshair' }} attributionControl={false}>
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
               <LocationPicker onPick={setLocationPickPos} />
               {ambulances.map(a =>
                 a.lat && a.lon

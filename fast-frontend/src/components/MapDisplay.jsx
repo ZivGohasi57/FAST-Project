@@ -122,10 +122,10 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       zoom={15}
       style={{ height:'100%', width:'100%' }}
       zoomControl={false}
+      attributionControl={false}
     >
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-        attribution='&copy; OpenStreetMap &copy; CARTO'
         maxZoom={19}
       />
 

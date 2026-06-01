@@ -682,6 +682,9 @@ export default function DriverView() {
             </div>
           )}
         </div>
+        <div style={{ textAlign: 'center', fontSize: 9, color: '#ccc', paddingBottom: 3 }}>
+          © <a href="https://www.openstreetmap.org/copyright" style={{ color: '#ccc', textDecoration: 'none' }}>OpenStreetMap</a> © <a href="https://carto.com" style={{ color: '#ccc', textDecoration: 'none' }}>CARTO</a>
+        </div>
       </div>
 
       {/* FULL-SCREEN MODALS — cover both map and bar */}

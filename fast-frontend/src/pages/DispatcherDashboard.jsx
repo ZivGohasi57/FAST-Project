@@ -508,11 +508,8 @@ export default function DispatcherDashboard() {
             ← חזור
           </button>
         )}
-        <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%' }}>
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
+        <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%' }} attributionControl={false}>
+          <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
           {mapPoints.length > 0 && <AutoFit points={mapPoints} />}
           {trafficSegments.map((seg, i) => (
             <Polyline key={i} positions={seg.points.map(p => [p[0], p[1]])}
@@ -524,7 +521,7 @@ export default function DispatcherDashboard() {
               </Tooltip>
             </Polyline>
           ))}
-          {ambulances.map(amb => (
+          {ambulances.filter(amb => amb.driverId && amb.driverId.trim() !== '').map(amb => (
             <Marker key={amb.id} position={[amb.lat, amb.lon]} icon={amb.status === 'available' ? iconAvailable : iconBusy}>
               <Popup><div style={{ direction: 'rtl', minWidth: 130, fontSize: 13 }}>
                 <b>🚑 אמב. {amb.ambulanceNumber || amb.id?.replace('amb-', '')}</b><br />
@@ -547,6 +544,9 @@ export default function DispatcherDashboard() {
             </>
           )}
         </MapContainer>
+        <div style={{ position: 'absolute', bottom: 4, left: 6, fontSize: 9, color: '#aaa', pointerEvents: 'none', zIndex: 400 }}>
+          © OpenStreetMap © CARTO
+        </div>
       </div>
     </div>
   );
