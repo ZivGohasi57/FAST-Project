@@ -291,6 +291,7 @@ export default function DriverView() {
   const prevCaseIdRef       = useRef(null);
   const locationLockedRef   = useRef(false);
   const prevActiveCaseIdRef = useRef(null);
+  const firstGpsRef         = useRef(true);
   const [newCaseAlert,  setNewCaseAlert]  = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
 
@@ -356,6 +357,10 @@ export default function DriverView() {
         const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
         setStartPos(pos);
         setStartText('📍 מיקום נוכחי');
+        if (firstGpsRef.current) {
+          firstGpsRef.current = false;
+          setRecenterCount(c => c + 1);
+        }
         if (ambId) axios.post(`${API_BASE}/api/ambulances/location`, { ambulanceId: ambId, lat: coords.latitude, lon: coords.longitude }).catch(() => {});
       }, () => {});
     };
@@ -584,7 +589,7 @@ export default function DriverView() {
         </div>
       )}
 
-      {routeInfo && !searchOpen && (() => {
+      {routeInfo && !searchOpen && !activeCase && (() => {
         const arrival = new Date(Date.now() + routeInfo.time * 1000)
           .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
         return (
@@ -612,9 +617,10 @@ export default function DriverView() {
         <button onClick={() => { setIsFollowing(true); setRecenterCount(c => c + 1); }} style={{
           position: 'absolute',
           bottom: (() => {
-            const arriveVisible = activeCase && activeCase.status === 'active' && !arrivedAtScene;
-            const base = arriveVisible ? 180 : 116;
-            return `calc(${routeInfo ? base + 58 : base + 10}px + env(safe-area-inset-bottom, 0px))`;
+            const hasNavStrip   = !!(activeCase && routeInfo);
+            const hasArrive     = !!(activeCase && activeCase.status === 'active' && !arrivedAtScene);
+            const base = 116 + (hasNavStrip ? 72 : 0) + (hasArrive ? 56 : 0);
+            return `calc(${base + 10}px + env(safe-area-inset-bottom, 0px))`;
           })(),
           right: 16, zIndex: 495,
           width: 50, height: 50, borderRadius: '50%',
@@ -648,8 +654,30 @@ export default function DriverView() {
           </div>
         )}
 
+        {activeCase && routeInfo && (() => {
+          const arrival = new Date(Date.now() + routeInfo.time * 1000)
+            .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+          return (
+            <div style={{ margin: '6px 14px 0', padding: '12px 14px', background: isEmergency ? '#fff0ef' : '#f0fff4', border: `2px solid ${isEmergency ? '#ff3b30' : '#34c759'}`, borderRadius: 14, direction: 'rtl' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ minWidth: 0, flex: 1, marginLeft: 12 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#999', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>יעד</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    📍 {activeCase.address}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'center', flexShrink: 0, borderRight: '1px solid #e0e0e0', paddingRight: 14 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#999', marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>הגעה</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: isEmergency ? '#ff3b30' : '#007aff', lineHeight: 1.1 }}>{arrival}</div>
+                  <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{fmtTime(routeInfo.time)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {activeCase && activeCase.status === 'active' && (
-          <div style={{ padding: '6px 14px' }}>
+          <div style={{ padding: '6px 14px 0' }}>
             {!arrivedAtScene ? (
               <button onClick={handleArrived} style={{ width: '100%', height: 48, background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'white', fontFamily: 'inherit' }}>
                 ✓ הגעתי לאירוע
@@ -677,12 +705,6 @@ export default function DriverView() {
                 {routeInfo ? 'שנה מסלול' : 'לאן?'}
               </span>
             </button>
-          )}
-
-          {activeCase && (
-            <div style={{ flex: 1, height: 48, background: '#fff3e0', border: '1.5px solid #ff9500', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, color: '#ff9500' }}>
-              ● עסוק בקריאה
-            </div>
           )}
 
           <button onClick={toggleEmergency} style={{
