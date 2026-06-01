@@ -32,8 +32,8 @@ public class DataStore {
     }
 
     private static final Map<String, Long> COL_TTL = Map.of(
-        "cases",      2_000L,
-        "ambulances", 2_000L,
+        "cases",      15_000L,
+        "ambulances", 10_000L,
         "users",      60_000L,
         "nogozones",  60_000L
     );
