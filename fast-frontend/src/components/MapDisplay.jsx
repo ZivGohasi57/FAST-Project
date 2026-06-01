@@ -66,24 +66,27 @@ function PanDetector({ onUserPan }) {
 
 const BOTTOM_BAR_PX = 130;
 
-function AutoFit({ startPos, endPos, routeCoordinates, isFollowing }) {
+function AutoFit({ startPos, endPos, routeCoordinates, recenterCount }) {
   const map = useMap();
-  const prevFollowingRef = useRef(isFollowing);
+  const startPosRef = useRef(startPos);
+  startPosRef.current = startPos;
 
   useEffect(() => {
     if (routeCoordinates?.length > 0) {
       map.fitBounds(L.latLngBounds(routeCoordinates), { padding:[80,80], maxZoom:16 });
     } else if (startPos && endPos) {
       map.fitBounds(L.latLngBounds([startPos, endPos]), { padding:[80,80], maxZoom:16 });
-    } else if (startPos?.[0] && isFollowing) {
-      const justEnabled = !prevFollowingRef.current && isFollowing;
-      if (justEnabled) {
-        map.setView(startPos, 18, { animate: false });
-        map.panBy([0, BOTTOM_BAR_PX / 2], { animate: true, duration: 0.4 });
-      }
     }
-    prevFollowingRef.current = isFollowing;
-  }, [startPos, endPos, routeCoordinates, isFollowing, map]);
+  }, [routeCoordinates, startPos, endPos, map]);
+
+  useEffect(() => {
+    if (recenterCount === 0) return;
+    const pos = startPosRef.current;
+    if (!pos?.[0]) return;
+    map.setView(pos, 18, { animate: false });
+    map.panBy([0, BOTTOM_BAR_PX / 2], { animate: true, duration: 0.4 });
+  }, [recenterCount, map]);
+
   return null;
 }
 
@@ -108,7 +111,7 @@ function SignalLayer({ signals }) {
   ));
 }
 
-function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan }) {
+function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
 
@@ -126,7 +129,7 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       />
 
       <PanDetector onUserPan={onUserPan} />
-      <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} isFollowing={isFollowing} />
+      <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} recenterCount={recenterCount} />
       <TrafficLayer segments={trafficSegments} />
       <SignalLayer signals={trafficSignals} />
 

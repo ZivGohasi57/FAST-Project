@@ -263,6 +263,7 @@ function SearchModal({ startText, setStartText, endText, setEndText, onSelectSta
 export default function DriverView() {
   const [isEmergency,    setIsEmergency]    = useState(false);
   const [isFollowing,    setIsFollowing]    = useState(true);
+  const [recenterCount,  setRecenterCount]  = useState(0);
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [routeCoords,    setRouteCoords]    = useState([]);
   const [routeInfo,      setRouteInfo]      = useState(null);
@@ -395,6 +396,7 @@ export default function DriverView() {
     setNewCaseAlert(true);
     setSearchOpen(false);
     setIsFollowing(true);
+    setRecenterCount(c => c + 1);
   }, [activeCase]);
 
   useEffect(() => {
@@ -419,6 +421,7 @@ export default function DriverView() {
         setRouteInfo({ distance: data.totalDistanceMeters, time: data.estimatedTimeSeconds });
         setInstructions(data.instructions ?? []);
         setSearchOpen(false);
+        setRecenterCount(c => c + 1);
       }
     } catch { setError('לא ניתן לחשב מסלול.'); }
     setLoading(false);
@@ -477,7 +480,7 @@ export default function DriverView() {
     try { await axios.post(`${API_BASE}/api/cases/arrive`, { caseId: activeCase.id }); setArrivedAtScene(true); } catch {}
   };
 
-  const BOTTOM_H = 'calc(132px + env(safe-area-inset-bottom, 0px))';
+  const BOTTOM_H = 'calc(162px + env(safe-area-inset-bottom, 0px))';
 
   return (
     <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -492,6 +495,7 @@ export default function DriverView() {
           trafficSegments={trafficSegments}
           isFollowing={isFollowing}
           onUserPan={() => setIsFollowing(false)}
+          recenterCount={recenterCount}
         />
       </div>
 
@@ -605,7 +609,7 @@ export default function DriverView() {
       })()}
 
       {!isFollowing && !searchOpen && (
-        <button onClick={() => setIsFollowing(true)} style={{
+        <button onClick={() => { setIsFollowing(true); setRecenterCount(c => c + 1); }} style={{
           position: 'absolute',
           bottom: (() => {
             const arriveVisible = activeCase && activeCase.status === 'active' && !arrivedAtScene;
