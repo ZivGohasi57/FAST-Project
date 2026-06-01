@@ -39,7 +39,7 @@ export default function LoginPage() {
         boxShadow: '0 8px 40px rgba(0,0,0,0.12)', width: '100%', maxWidth: 380,
       }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img src="/fast-logo.svg" alt="FAST" style={{ width: 80, height: 80, marginBottom: 10 }} />
+          <img src="/fast-logo.jpg" alt="FAST" style={{ width: 88, height: 88, marginBottom: 10, borderRadius: 18 }} />
           <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#1a1a2e' }}>FAST</h1>
           <p style={{ margin: '4px 0 0', color: '#888', fontSize: 13 }}>מערכת ניהול אמבולנסים</p>
         </div>
