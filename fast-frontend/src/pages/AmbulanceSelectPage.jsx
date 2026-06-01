@@ -50,7 +50,7 @@ export default function AmbulanceSelectPage() {
     }}>
 
       <div style={{ textAlign: 'center', marginBottom: 36 }}>
-        <div style={{ fontSize: 52, marginBottom: 12, lineHeight: 1 }}>🚑</div>
+        <img src="/fast-logo.svg" alt="FAST" style={{ width: 72, height: 72, marginBottom: 12 }} />
         <div style={{ color: 'white', fontSize: 22, fontWeight: 800, marginBottom: 6 }}>
           שלום, {auth.displayName || 'נהג'}
         </div>
