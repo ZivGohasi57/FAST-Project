@@ -82,7 +82,10 @@ function AutoFit({ startPos, recenterCount, overviewCount, routeCoordinates }) {
     if (overviewCount === 0) return;
     const coords = routeRef.current;
     if (!coords?.length) return;
-    map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 16, animate: true });
+    const bounds = L.latLngBounds(coords);
+    const pos = startPosRef.current;
+    if (pos?.[0]) bounds.extend(pos);
+    map.fitBounds(bounds, { padding: [60, 60], maxZoom: 15, animate: true });
   }, [overviewCount, map]);
 
   return null;

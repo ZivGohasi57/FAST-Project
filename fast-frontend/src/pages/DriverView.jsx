@@ -585,87 +585,71 @@ export default function DriverView() {
         )}
       </div>
 
-      {/* BOTTOM BAR — in normal flow, no overlay on map */}
-      <div style={{
-        flexShrink: 0,
-        background: 'white',
-        borderRadius: '24px 24px 0 0',
-        boxShadow: '0 -4px 28px rgba(0,0,0,0.1)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
-          <div style={{ width: 40, height: 4, borderRadius: 2, background: '#e0e0e0' }} />
+      {/* BOTTOM BAR — compact, in normal flow */}
+      <div style={{ flexShrink: 0, background: 'white', borderRadius: '20px 20px 0 0', boxShadow: '0 -3px 20px rgba(0,0,0,0.08)' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 7, paddingBottom: 1 }}>
+          <div style={{ width: 36, height: 3, borderRadius: 2, background: '#e0e0e0' }} />
         </div>
 
-        {ambulanceId && (
-          <div style={{ textAlign: 'center', fontSize: 10, color: '#bbb', marginBottom: 2, letterSpacing: 0.3 }}>
-            🚑 {ambulanceId.replace('amb-', 'אמב. ')}
-          </div>
-        )}
-
-        {locationLocked && (
-          <div style={{ margin: '4px 14px 4px', background: '#fff3e0', border: '1.5px solid #ff9500', borderRadius: 10, padding: '7px 12px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#e65100', fontWeight: 600 }}>
-            <span style={{ fontSize: 15 }}>🔒</span>מיקום נשלט ע"י המנהל
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 2 }}>
+          {ambulanceId && <span style={{ fontSize: 10, color: '#ccc', letterSpacing: 0.2 }}>🚑 {ambulanceId.replace('amb-', 'אמב. ')}</span>}
+          {locationLocked && <span style={{ fontSize: 10, color: '#e65100', fontWeight: 600 }}>🔒 מיקום נעול</span>}
+        </div>
 
         {activeCase && routeInfo && (() => {
           const arrival = new Date(Date.now() + routeInfo.time * 1000)
             .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
           return (
-            <div style={{ margin: '6px 14px 0', padding: '12px 14px', background: isEmergency ? '#fff0ef' : '#f0fff4', border: `2px solid ${isEmergency ? '#ff3b30' : '#34c759'}`, borderRadius: 14, direction: 'rtl' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ minWidth: 0, flex: 1, marginLeft: 12 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#999', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 0.5 }}>יעד</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    📍 {activeCase.address}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'center', flexShrink: 0, borderRight: '1px solid #e0e0e0', paddingRight: 14 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#999', marginBottom: 2, textTransform: 'uppercase', letterSpacing: 0.5 }}>הגעה</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: isEmergency ? '#ff3b30' : '#007aff', lineHeight: 1.1 }}>{arrival}</div>
-                  <div style={{ fontSize: 11, color: '#888', marginTop: 1 }}>{fmtTime(routeInfo.time)}</div>
-                </div>
+            <div style={{ margin: '2px 12px 0', padding: '7px 12px', background: isEmergency ? '#fff0ef' : '#f0fff4', border: `1.5px solid ${isEmergency ? '#ff3b30' : '#34c759'}`, borderRadius: 12, direction: 'rtl', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ minWidth: 0, flex: 1, marginLeft: 10 }}>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 1 }}>יעד</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {activeCase.address}</div>
+              </div>
+              <div style={{ textAlign: 'center', flexShrink: 0, borderRight: '1px solid #e8e8e8', paddingRight: 12 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: isEmergency ? '#ff3b30' : '#007aff', lineHeight: 1 }}>{arrival}</div>
+                <div style={{ fontSize: 10, color: '#999', marginTop: 1 }}>{fmtTime(routeInfo.time)}</div>
               </div>
             </div>
           );
         })()}
 
         {activeCase && activeCase.status === 'active' && (
-          <div style={{ padding: '6px 14px 0' }}>
+          <div style={{ padding: '4px 12px 0' }}>
             {!arrivedAtScene ? (
-              <button onClick={handleArrived} style={{ width: '100%', height: 48, background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'white', fontFamily: 'inherit' }}>
+              <button onClick={handleArrived} style={{ width: '100%', height: 40, background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'white', fontFamily: 'inherit' }}>
                 ✓ הגעתי לאירוע
               </button>
             ) : (
-              <div style={{ width: '100%', height: 40, background: '#e6f9ec', border: '1.5px solid #34c759', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 13, color: '#34c759' }}>
+              <div style={{ width: '100%', height: 34, background: '#e6f9ec', border: '1.5px solid #34c759', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12, color: '#34c759' }}>
                 ✓ הגעה נרשמה
               </div>
             )}
           </div>
         )}
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 14px', paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', paddingBottom: 'max(10px, env(safe-area-inset-bottom, 0px))' }}>
 
           {!activeCase && (
-            <button onClick={() => setDisconnectOpen(true)} style={{ width: 48, height: 48, flexShrink: 0, background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 12, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <button onClick={() => setDisconnectOpen(true)} style={{ width: 40, height: 40, flexShrink: 0, background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 10, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               🔌
             </button>
           )}
 
           {!activeCase && (
-            <button onClick={() => setSearchOpen(true)} style={{ flex: 1, height: 48, background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px', fontFamily: 'inherit' }}>
-              <span style={{ fontSize: 16 }}>🔍</span>
-              <span style={{ fontSize: 14, color: routeInfo ? '#1a1a2e' : '#aaa', fontWeight: routeInfo ? 600 : 400 }}>
+            <button onClick={() => setSearchOpen(true)} style={{ flex: 1, height: 40, background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 7, padding: '0 12px', fontFamily: 'inherit' }}>
+              <span style={{ fontSize: 15 }}>🔍</span>
+              <span style={{ fontSize: 13, color: routeInfo ? '#1a1a2e' : '#aaa', fontWeight: routeInfo ? 600 : 400 }}>
                 {routeInfo ? 'שנה מסלול' : 'לאן?'}
               </span>
             </button>
           )}
 
           <button onClick={toggleEmergency} style={{
-            minHeight: 48, padding: '0 14px', display: 'flex', alignItems: 'center',
+            minHeight: 40, padding: '0 12px', display: 'flex', alignItems: 'center',
             background: isEmergency ? '#fff0ef' : '#f0f9f0',
             border: `1.5px solid ${isEmergency ? '#ff3b30' : '#34c759'}`,
-            borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+            borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12,
             color: isEmergency ? '#ff3b30' : '#34c759',
             whiteSpace: 'nowrap', fontFamily: 'inherit',
             animation: isEmergency ? 'emergencyPulse 1.4s ease-in-out infinite' : 'none',
@@ -675,10 +659,10 @@ export default function DriverView() {
 
           {!activeCase && (
             <button onClick={handleToggleStatus} disabled={statusSaving} style={{
-              minHeight: 48, padding: '0 14px', display: 'flex', alignItems: 'center',
+              minHeight: 40, padding: '0 12px', display: 'flex', alignItems: 'center',
               background: driverStatus === 'available' ? '#f0f9f0' : '#f5f5f5',
               border: `1.5px solid ${driverStatus === 'available' ? '#34c759' : '#aaa'}`,
-              borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 12,
+              borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12,
               color: driverStatus === 'available' ? '#34c759' : '#888',
               whiteSpace: 'nowrap', fontFamily: 'inherit',
             }}>
@@ -687,13 +671,13 @@ export default function DriverView() {
           )}
 
           {activeCase && activeCase.status === 'active' && (
-            <button onClick={() => setCancelConfirm(true)} style={{ minHeight: 48, padding: '0 14px', display: 'flex', alignItems: 'center', background: '#fff0ef', border: '1.5px solid #ff3b30', borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#ff3b30', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
+            <button onClick={() => setCancelConfirm(true)} style={{ minHeight: 40, padding: '0 12px', display: 'flex', alignItems: 'center', background: '#fff0ef', border: '1.5px solid #ff3b30', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#ff3b30', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>
               ✕ בטל
             </button>
           )}
 
           {activeCase && activeCase.status === 'cancel_requested' && (
-            <div style={{ minHeight: 48, padding: '0 12px', display: 'flex', alignItems: 'center', background: '#fff8e1', border: '1.5px solid #ff9500', borderRadius: 12, fontWeight: 600, fontSize: 11, color: '#ff9500', whiteSpace: 'nowrap' }}>
+            <div style={{ minHeight: 40, padding: '0 10px', display: 'flex', alignItems: 'center', background: '#fff8e1', border: '1.5px solid #ff9500', borderRadius: 10, fontWeight: 600, fontSize: 11, color: '#ff9500', whiteSpace: 'nowrap' }}>
               ⏳ ממתין לביטול
             </div>
           )}
