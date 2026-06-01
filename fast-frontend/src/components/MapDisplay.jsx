@@ -66,16 +66,10 @@ function PanDetector({ onUserPan }) {
 
 const BOTTOM_BAR_PX = 130;
 
-function AutoFit({ startPos, endPos, routeCoordinates, recenterCount }) {
+function AutoFit({ startPos, recenterCount }) {
   const map = useMap();
   const startPosRef = useRef(startPos);
   startPosRef.current = startPos;
-
-  useEffect(() => {
-    if (routeCoordinates?.length > 0) {
-      map.fitBounds(L.latLngBounds(routeCoordinates), { padding:[80,80], maxZoom:16 });
-    }
-  }, [routeCoordinates]); // eslint-disable-line
 
   useEffect(() => {
     if (recenterCount === 0) return;
@@ -127,7 +121,7 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       />
 
       <PanDetector onUserPan={onUserPan} />
-      <AutoFit startPos={startPos} endPos={endPos} routeCoordinates={routeCoordinates} recenterCount={recenterCount} />
+      <AutoFit startPos={startPos} recenterCount={recenterCount} />
       <TrafficLayer segments={trafficSegments} />
       <SignalLayer signals={trafficSignals} />
 
