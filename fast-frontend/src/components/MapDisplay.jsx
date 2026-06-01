@@ -64,6 +64,8 @@ function PanDetector({ onUserPan }) {
   return null;
 }
 
+const BOTTOM_BAR_PX = 130;
+
 function AutoFit({ startPos, endPos, routeCoordinates, isFollowing }) {
   const map = useMap();
   const prevFollowingRef = useRef(isFollowing);
@@ -75,8 +77,10 @@ function AutoFit({ startPos, endPos, routeCoordinates, isFollowing }) {
       map.fitBounds(L.latLngBounds([startPos, endPos]), { padding:[80,80], maxZoom:16 });
     } else if (startPos?.[0] && isFollowing) {
       const justEnabled = !prevFollowingRef.current && isFollowing;
-      const zoom = justEnabled ? 17 : Math.max(map.getZoom(), 15);
-      map.setView(startPos, zoom, { animate: true });
+      if (justEnabled) {
+        map.setView(startPos, 18, { animate: false });
+        map.panBy([0, BOTTOM_BAR_PX / 2], { animate: true, duration: 0.4 });
+      }
     }
     prevFollowingRef.current = isFollowing;
   }, [startPos, endPos, routeCoordinates, isFollowing, map]);

@@ -419,7 +419,6 @@ export default function DriverView() {
         setRouteInfo({ distance: data.totalDistanceMeters, time: data.estimatedTimeSeconds });
         setInstructions(data.instructions ?? []);
         setSearchOpen(false);
-        setIsFollowing(true);
       }
     } catch { setError('לא ניתן לחשב מסלול.'); }
     setLoading(false);
@@ -478,7 +477,7 @@ export default function DriverView() {
     try { await axios.post(`${API_BASE}/api/cases/arrive`, { caseId: activeCase.id }); setArrivedAtScene(true); } catch {}
   };
 
-  const BOTTOM_H = 'calc(106px + env(safe-area-inset-bottom, 0px))';
+  const BOTTOM_H = 'calc(132px + env(safe-area-inset-bottom, 0px))';
 
   return (
     <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
