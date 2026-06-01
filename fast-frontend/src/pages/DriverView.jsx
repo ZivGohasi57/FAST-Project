@@ -264,6 +264,8 @@ export default function DriverView() {
   const [isEmergency,    setIsEmergency]    = useState(false);
   const [isFollowing,    setIsFollowing]    = useState(true);
   const [recenterCount,  setRecenterCount]  = useState(0);
+  const [overviewCount,  setOverviewCount]  = useState(0);
+  const [inOverview,     setInOverview]     = useState(false);
   const [searchOpen,     setSearchOpen]     = useState(false);
   const [routeCoords,    setRouteCoords]    = useState([]);
   const [routeInfo,      setRouteInfo]      = useState(null);
@@ -414,7 +416,7 @@ export default function DriverView() {
     if (startPos && endPos) fetchRoute(isEmergency, startPos, endPos);
   }, [startPos, endPos]); // eslint-disable-line
 
-  const fetchRoute = useCallback(async (emergency, start, end) => {
+  const fetchRoute = useCallback(async (emergency, start, end, shouldRecenter = false) => {
     if (!start || !end) return;
     setLoading(true); setError(null);
     try {
@@ -426,7 +428,8 @@ export default function DriverView() {
         setRouteInfo({ distance: data.totalDistanceMeters, time: data.estimatedTimeSeconds });
         setInstructions(data.instructions ?? []);
         setSearchOpen(false);
-        setRecenterCount(c => c + 1);
+        setInOverview(false);
+        if (shouldRecenter) setRecenterCount(c => c + 1);
       }
     } catch { setError('לא ניתן לחשב מסלול.'); }
     setLoading(false);
@@ -472,7 +475,7 @@ export default function DriverView() {
   const toggleEmergency = () => {
     const next = !isEmergency;
     setIsEmergency(next);
-    if (startPos && endPos) fetchRoute(next, startPos, endPos);
+    if (startPos && endPos) fetchRoute(next, startPos, endPos, true);
   };
 
   const handleCancelRequest = async () => {
@@ -499,8 +502,10 @@ export default function DriverView() {
           trafficSignals={trafficSignals}
           trafficSegments={trafficSegments}
           isFollowing={isFollowing}
-          onUserPan={() => setIsFollowing(false)}
+          onUserPan={() => { setIsFollowing(false); setInOverview(false); }}
           recenterCount={recenterCount}
+          overviewCount={overviewCount}
+          routeCoordinates={routeCoords}
         />
       </div>
 
@@ -613,23 +618,43 @@ export default function DriverView() {
         );
       })()}
 
-      {!isFollowing && !searchOpen && (
-        <button onClick={() => { setIsFollowing(true); setRecenterCount(c => c + 1); }} style={{
-          position: 'absolute',
-          bottom: (() => {
-            const hasNavStrip   = !!(activeCase && routeInfo);
-            const hasArrive     = !!(activeCase && activeCase.status === 'active' && !arrivedAtScene);
-            const base = 116 + (hasNavStrip ? 72 : 0) + (hasArrive ? 56 : 0);
-            return `calc(${base + 10}px + env(safe-area-inset-bottom, 0px))`;
-          })(),
-          right: 16, zIndex: 495,
-          width: 50, height: 50, borderRadius: '50%',
-          background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.22)',
-          border: '2.5px solid #007aff',
-          cursor: 'pointer', fontSize: 22,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>📍</button>
-      )}
+      {!searchOpen && (() => {
+        const hasNavStrip = !!(activeCase && routeInfo);
+        const hasArrive   = !!(activeCase && activeCase.status === 'active' && !arrivedAtScene);
+        const base = 116 + (hasNavStrip ? 72 : 0) + (hasArrive ? 56 : 0);
+        const btnBottom = (offset) => `calc(${base + offset}px + env(safe-area-inset-bottom, 0px))`;
+        return (
+          <>
+            {inOverview && (
+              <button onClick={() => { setIsFollowing(true); setInOverview(false); setRecenterCount(c => c + 1); }} style={{
+                position: 'absolute', bottom: btnBottom(10), right: 16, zIndex: 495,
+                width: 50, height: 50, borderRadius: '50%',
+                background: '#007aff', boxShadow: '0 3px 20px rgba(0,122,255,0.4)',
+                border: 'none', cursor: 'pointer', fontSize: 20,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+              }}>📍</button>
+            )}
+            {!inOverview && !isFollowing && (
+              <button onClick={() => { setIsFollowing(true); setRecenterCount(c => c + 1); }} style={{
+                position: 'absolute', bottom: btnBottom(10), right: 16, zIndex: 495,
+                width: 50, height: 50, borderRadius: '50%',
+                background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.22)',
+                border: '2.5px solid #007aff', cursor: 'pointer', fontSize: 22,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>📍</button>
+            )}
+            {routeCoords.length > 0 && !inOverview && (
+              <button onClick={() => { setInOverview(true); setOverviewCount(c => c + 1); }} style={{
+                position: 'absolute', bottom: btnBottom(!isFollowing ? 70 : 10), right: 16, zIndex: 495,
+                width: 50, height: 50, borderRadius: '50%',
+                background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.18)',
+                border: '1.5px solid #e8eaed', cursor: 'pointer', fontSize: 20,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>🗺</button>
+            )}
+          </>
+        );
+      })()}
 
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
@@ -754,7 +779,7 @@ export default function DriverView() {
           onSelectEnd={pos => setEndPos(pos)}
           startPos={startPos} endPos={endPos}
           loading={loading} error={error}
-          onNavigate={() => fetchRoute(isEmergency, startPos, endPos)}
+          onNavigate={() => fetchRoute(isEmergency, startPos, endPos, true)}
           onClose={() => setSearchOpen(false)}
           isEmergency={isEmergency}
           onGPS={handleUseMyLocation}

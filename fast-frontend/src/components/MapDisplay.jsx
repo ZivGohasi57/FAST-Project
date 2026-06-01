@@ -66,10 +66,12 @@ function PanDetector({ onUserPan }) {
 
 const BOTTOM_BAR_PX = 130;
 
-function AutoFit({ startPos, recenterCount }) {
+function AutoFit({ startPos, recenterCount, overviewCount, routeCoordinates }) {
   const map = useMap();
   const startPosRef = useRef(startPos);
+  const routeRef    = useRef(routeCoordinates);
   startPosRef.current = startPos;
+  routeRef.current    = routeCoordinates;
 
   useEffect(() => {
     if (recenterCount === 0) return;
@@ -78,6 +80,13 @@ function AutoFit({ startPos, recenterCount }) {
     map.setView(pos, 18, { animate: false });
     map.panBy([0, BOTTOM_BAR_PX / 2], { animate: true, duration: 0.4 });
   }, [recenterCount, map]);
+
+  useEffect(() => {
+    if (overviewCount === 0) return;
+    const coords = routeRef.current;
+    if (!coords?.length) return;
+    map.fitBounds(L.latLngBounds(coords), { padding: [80, 80], maxZoom: 16, animate: true });
+  }, [overviewCount, map]);
 
   return null;
 }
@@ -103,7 +112,7 @@ function SignalLayer({ signals }) {
   ));
 }
 
-function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount }) {
+function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount, overviewCount }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
 
@@ -121,7 +130,7 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       />
 
       <PanDetector onUserPan={onUserPan} />
-      <AutoFit startPos={startPos} recenterCount={recenterCount} />
+      <AutoFit startPos={startPos} recenterCount={recenterCount} overviewCount={overviewCount} routeCoordinates={routeCoordinates} />
       <TrafficLayer segments={trafficSegments} />
       <SignalLayer signals={trafficSignals} />
 
