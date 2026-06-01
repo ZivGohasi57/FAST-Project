@@ -488,12 +488,11 @@ export default function DriverView() {
     try { await axios.post(`${API_BASE}/api/cases/arrive`, { caseId: activeCase.id }); setArrivedAtScene(true); } catch {}
   };
 
-  const BOTTOM_H = 'calc(162px + env(safe-area-inset-bottom, 0px))';
-
   return (
-    <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
-      <div style={{ position: 'absolute', inset: 0 }}>
+      {/* MAP AREA — fills all space above the bar */}
+      <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <MapDisplay
           routeCoordinates={routeCoords}
           startPos={startPos ? [startPos.lat, startPos.lon] : null}
@@ -507,127 +506,59 @@ export default function DriverView() {
           overviewCount={overviewCount}
           routeCoordinates={routeCoords}
         />
-      </div>
 
-      {instructions.length > 0 && <InstructionBanner instructions={instructions} isEmergency={isEmergency} />}
+        {instructions.length > 0 && <InstructionBanner instructions={instructions} isEmergency={isEmergency} />}
 
-      {activeCase?.notes && (() => {
-        const last = activeCase.notes.split('\n').filter(Boolean).pop();
-        return last ? (
-          <div style={{
-            position: 'absolute',
-            top: instructions.length > 0 ? 'calc(env(safe-area-inset-top, 0px) + 108px)' : 'calc(env(safe-area-inset-top, 0px) + 16px)',
-            left: 16, right: 16, zIndex: 590,
-            background: 'rgba(255,149,0,0.95)', backdropFilter: 'blur(6px)',
-            borderRadius: 14, padding: '10px 16px',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            display: 'flex', alignItems: 'flex-start', gap: 10,
-          }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
-            <div>
-              <div style={{ color: 'white', fontWeight: 700, fontSize: 11, marginBottom: 3, opacity: 0.85 }}>עדכון מוקד</div>
-              <div style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>{last}</div>
-            </div>
-          </div>
-        ) : null;
-      })()}
-
-      {newCaseAlert && activeCase && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={() => setNewCaseAlert(false)}>
-          <div style={{ background: 'white', borderRadius: 24, padding: '28px 26px 22px', maxWidth: 360, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ textAlign: 'center', fontSize: 54, lineHeight: 1, marginBottom: 14 }}>{activeCase.urgency === 'emergency' ? '🚨' : '📋'}</div>
-            <div style={{ textAlign: 'center', fontSize: 20, fontWeight: 800, color: activeCase.urgency === 'emergency' ? '#ff3b30' : '#1a1a2e', marginBottom: 6 }}>קריאה חדשה התקבלה</div>
-            <div style={{ textAlign: 'center', marginBottom: 18 }}>
-              <span style={{ display: 'inline-block', background: activeCase.urgency === 'emergency' ? '#fff0ef' : '#f0f9f0', color: activeCase.urgency === 'emergency' ? '#ff3b30' : '#34c759', border: `1.5px solid ${activeCase.urgency === 'emergency' ? '#ff3b30' : '#34c759'}`, borderRadius: 20, padding: '2px 14px', fontSize: 12, fontWeight: 700 }}>
-                {activeCase.urgency === 'emergency' ? 'חירום' : 'שגרה'}
-              </span>
-            </div>
-            <div style={{ background: '#f5f7fa', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
-              <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 600 }}>כתובת האירוע</div>
-              <div style={{ color: '#1a1a2e', fontSize: 15, fontWeight: 700 }}>{activeCase.address}</div>
-            </div>
-            {activeCase.patientDetails && (
-              <div style={{ background: '#f5f7fa', borderRadius: 12, padding: '10px 14px', marginBottom: 12 }}>
-                <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 600 }}>פרטי מטופל</div>
-                <div style={{ color: '#333', fontSize: 13 }}>{activeCase.patientDetails}</div>
+        {activeCase?.notes && (() => {
+          const last = activeCase.notes.split('\n').filter(Boolean).pop();
+          return last ? (
+            <div style={{
+              position: 'absolute',
+              top: instructions.length > 0 ? 'calc(env(safe-area-inset-top, 0px) + 108px)' : 'calc(env(safe-area-inset-top, 0px) + 16px)',
+              left: 16, right: 16, zIndex: 590,
+              background: 'rgba(255,149,0,0.95)', backdropFilter: 'blur(6px)',
+              borderRadius: 14, padding: '10px 16px',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+              display: 'flex', alignItems: 'flex-start', gap: 10,
+            }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>📋</span>
+              <div>
+                <div style={{ color: 'white', fontWeight: 700, fontSize: 11, marginBottom: 3, opacity: 0.85 }}>עדכון מוקד</div>
+                <div style={{ color: 'white', fontSize: 14, fontWeight: 500 }}>{last}</div>
               </div>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#007aff', fontSize: 13, fontWeight: 600, marginBottom: 20 }}>
-              <span style={{ fontSize: 16 }}>🧭</span><span>הניווט מתחיל אוטומטית…</span>
             </div>
-            <button onClick={() => setNewCaseAlert(false)} style={{ width: '100%', padding: '13px', background: activeCase.urgency === 'emergency' ? 'linear-gradient(135deg,#ff3b30,#ff6b35)' : 'linear-gradient(135deg,#007aff,#5ac8fa)', color: 'white', border: 'none', borderRadius: 14, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
-              הבנתי, נווט
-            </button>
-          </div>
-        </div>
-      )}
+          ) : null;
+        })()}
 
-      {cancelConfirm && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ background: 'white', borderRadius: 22, padding: '28px 26px 22px', maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}>
-            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>⚠️</div>
-            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>ביטול נסיעה</div>
-            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>שליחת בקשת ביטול למוקדן. האם להמשיך?</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setCancelConfirm(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>לא</button>
-              <button onClick={handleCancelRequest} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#ff3b30,#ff6b35)', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>כן, בטל</button>
+        {/* Route info chip — manual navigation only */}
+        {routeInfo && !searchOpen && !activeCase && (() => {
+          const arrival = new Date(Date.now() + routeInfo.time * 1000)
+            .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+          return (
+            <div style={{
+              position: 'absolute', bottom: 16,
+              left: '50%', transform: 'translateX(-50%)',
+              zIndex: 490, whiteSpace: 'nowrap',
+              background: 'rgba(26,26,46,0.92)', backdropFilter: 'blur(10px)',
+              borderRadius: 24, padding: '9px 20px',
+              display: 'flex', gap: 14, alignItems: 'center',
+              color: 'white', fontSize: 14, fontWeight: 700,
+              boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            }}>
+              <span>{fmtDist(routeInfo.distance)}</span>
+              <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
+              <span style={{ color: isEmergency ? '#ff9f9f' : '#90d5ff' }}>{fmtTime(routeInfo.time)}</span>
+              <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
+              <span style={{ fontSize: 13, opacity: 0.85 }}>יגיע: {arrival}</span>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
-      {disconnectOpen && (
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-          <div style={{ background: 'white', borderRadius: 22, padding: '28px 26px 22px', maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}>
-            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>🔌</div>
-            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>ניתוק מהאמבולנס</div>
-            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>תנותק ויופנה לבחירת אמבולנס מחדש</div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setDisconnectOpen(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>לא</button>
-              <button onClick={handleDisconnect} disabled={disconnecting} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#1a1a2e,#2d3561)', border: 'none', borderRadius: 14, cursor: disconnecting ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>
-                {disconnecting ? '...' : 'כן, נתק'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {routeInfo && !searchOpen && !activeCase && (() => {
-        const arrival = new Date(Date.now() + routeInfo.time * 1000)
-          .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
-        return (
-          <div style={{
-            position: 'absolute',
-            bottom: BOTTOM_H,
-            left: '50%', transform: 'translateX(-50%)',
-            zIndex: 490, whiteSpace: 'nowrap',
-            background: 'rgba(26,26,46,0.92)', backdropFilter: 'blur(10px)',
-            borderRadius: 24, padding: '9px 20px',
-            display: 'flex', gap: 14, alignItems: 'center',
-            color: 'white', fontSize: 14, fontWeight: 700,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-          }}>
-            <span>{fmtDist(routeInfo.distance)}</span>
-            <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
-            <span style={{ color: isEmergency ? '#ff9f9f' : '#90d5ff' }}>{fmtTime(routeInfo.time)}</span>
-            <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
-            <span style={{ fontSize: 13, opacity: 0.85 }}>יגיע: {arrival}</span>
-          </div>
-        );
-      })()}
-
-      {!searchOpen && (() => {
-        const hasNavStrip = !!(activeCase && routeInfo);
-        const hasArrive   = !!(activeCase && activeCase.status === 'active' && !arrivedAtScene);
-        const base = 116 + (hasNavStrip ? 72 : 0) + (hasArrive ? 56 : 0);
-        const btnBottom = (offset) => `calc(${base + offset}px + env(safe-area-inset-bottom, 0px))`;
-        return (
-          <>
+        {/* Waze-style buttons — lower-right of map area */}
+        {!searchOpen && (
+          <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 495, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             {inOverview && (
               <button onClick={() => { setIsFollowing(true); setInOverview(false); setRecenterCount(c => c + 1); }} style={{
-                position: 'absolute', bottom: btnBottom(10), right: 16, zIndex: 495,
                 width: 50, height: 50, borderRadius: '50%',
                 background: '#007aff', boxShadow: '0 3px 20px rgba(0,122,255,0.4)',
                 border: 'none', cursor: 'pointer', fontSize: 20,
@@ -636,7 +567,6 @@ export default function DriverView() {
             )}
             {!inOverview && !isFollowing && (
               <button onClick={() => { setIsFollowing(true); setRecenterCount(c => c + 1); }} style={{
-                position: 'absolute', bottom: btnBottom(10), right: 16, zIndex: 495,
                 width: 50, height: 50, borderRadius: '50%',
                 background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.22)',
                 border: '2.5px solid #007aff', cursor: 'pointer', fontSize: 22,
@@ -645,23 +575,22 @@ export default function DriverView() {
             )}
             {routeCoords.length > 0 && !inOverview && (
               <button onClick={() => { setInOverview(true); setOverviewCount(c => c + 1); }} style={{
-                position: 'absolute', bottom: btnBottom(!isFollowing ? 70 : 10), right: 16, zIndex: 495,
                 width: 50, height: 50, borderRadius: '50%',
                 background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.18)',
-                border: '1.5px solid #e8eaed', cursor: 'pointer', fontSize: 20,
+                border: '1.5px solid #e0e0e0', cursor: 'pointer', fontSize: 20,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>🗺</button>
             )}
-          </>
-        );
-      })()}
+          </div>
+        )}
+      </div>
 
+      {/* BOTTOM BAR — in normal flow, no overlay on map */}
       <div style={{
-        position: 'absolute', bottom: 0, left: 0, right: 0,
+        flexShrink: 0,
         background: 'white',
         borderRadius: '24px 24px 0 0',
         boxShadow: '0 -4px 28px rgba(0,0,0,0.1)',
-        zIndex: 500,
       }}>
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 2 }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: '#e0e0e0' }} />
@@ -770,6 +699,69 @@ export default function DriverView() {
           )}
         </div>
       </div>
+
+      {/* FULL-SCREEN MODALS — cover both map and bar */}
+      {newCaseAlert && activeCase && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={() => setNewCaseAlert(false)}>
+          <div style={{ background: 'white', borderRadius: 24, padding: '28px 26px 22px', maxWidth: 360, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: 'center', fontSize: 54, lineHeight: 1, marginBottom: 14 }}>{activeCase.urgency === 'emergency' ? '🚨' : '📋'}</div>
+            <div style={{ textAlign: 'center', fontSize: 20, fontWeight: 800, color: activeCase.urgency === 'emergency' ? '#ff3b30' : '#1a1a2e', marginBottom: 6 }}>קריאה חדשה התקבלה</div>
+            <div style={{ textAlign: 'center', marginBottom: 18 }}>
+              <span style={{ display: 'inline-block', background: activeCase.urgency === 'emergency' ? '#fff0ef' : '#f0f9f0', color: activeCase.urgency === 'emergency' ? '#ff3b30' : '#34c759', border: `1.5px solid ${activeCase.urgency === 'emergency' ? '#ff3b30' : '#34c759'}`, borderRadius: 20, padding: '2px 14px', fontSize: 12, fontWeight: 700 }}>
+                {activeCase.urgency === 'emergency' ? 'חירום' : 'שגרה'}
+              </span>
+            </div>
+            <div style={{ background: '#f5f7fa', borderRadius: 12, padding: '12px 14px', marginBottom: 12 }}>
+              <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 600 }}>כתובת האירוע</div>
+              <div style={{ color: '#1a1a2e', fontSize: 15, fontWeight: 700 }}>{activeCase.address}</div>
+            </div>
+            {activeCase.patientDetails && (
+              <div style={{ background: '#f5f7fa', borderRadius: 12, padding: '10px 14px', marginBottom: 12 }}>
+                <div style={{ color: '#888', fontSize: 11, marginBottom: 4, fontWeight: 600 }}>פרטי מטופל</div>
+                <div style={{ color: '#333', fontSize: 13 }}>{activeCase.patientDetails}</div>
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, color: '#007aff', fontSize: 13, fontWeight: 600, marginBottom: 20 }}>
+              <span style={{ fontSize: 16 }}>🧭</span><span>הניווט מתחיל אוטומטית…</span>
+            </div>
+            <button onClick={() => setNewCaseAlert(false)} style={{ width: '100%', padding: '13px', background: activeCase.urgency === 'emergency' ? 'linear-gradient(135deg,#ff3b30,#ff6b35)' : 'linear-gradient(135deg,#007aff,#5ac8fa)', color: 'white', border: 'none', borderRadius: 14, fontWeight: 700, fontSize: 15, cursor: 'pointer' }}>
+              הבנתי, נווט
+            </button>
+          </div>
+        </div>
+      )}
+
+      {cancelConfirm && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'white', borderRadius: 22, padding: '28px 26px 22px', maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}>
+            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>⚠️</div>
+            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>ביטול נסיעה</div>
+            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>שליחת בקשת ביטול למוקדן. האם להמשיך?</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setCancelConfirm(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>לא</button>
+              <button onClick={handleCancelRequest} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#ff3b30,#ff6b35)', border: 'none', borderRadius: 14, cursor: 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>כן, בטל</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {disconnectOpen && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'white', borderRadius: 22, padding: '28px 26px 22px', maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}>
+            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>🔌</div>
+            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>ניתוק מהאמבולנס</div>
+            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>תנותק ויופנה לבחירת אמבולנס מחדש</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setDisconnectOpen(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>לא</button>
+              <button onClick={handleDisconnect} disabled={disconnecting} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#1a1a2e,#2d3561)', border: 'none', borderRadius: 14, cursor: disconnecting ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>
+                {disconnecting ? '...' : 'כן, נתק'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {searchOpen && (
         <SearchModal

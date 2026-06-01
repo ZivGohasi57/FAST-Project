@@ -64,8 +64,6 @@ function PanDetector({ onUserPan }) {
   return null;
 }
 
-const BOTTOM_BAR_PX = 130;
-
 function AutoFit({ startPos, recenterCount, overviewCount, routeCoordinates }) {
   const map = useMap();
   const startPosRef = useRef(startPos);
@@ -77,15 +75,14 @@ function AutoFit({ startPos, recenterCount, overviewCount, routeCoordinates }) {
     if (recenterCount === 0) return;
     const pos = startPosRef.current;
     if (!pos?.[0]) return;
-    map.setView(pos, 18, { animate: false });
-    map.panBy([0, BOTTOM_BAR_PX / 2], { animate: true, duration: 0.4 });
+    map.setView(pos, 18, { animate: true });
   }, [recenterCount, map]);
 
   useEffect(() => {
     if (overviewCount === 0) return;
     const coords = routeRef.current;
     if (!coords?.length) return;
-    map.fitBounds(L.latLngBounds(coords), { padding: [80, 80], maxZoom: 16, animate: true });
+    map.fitBounds(L.latLngBounds(coords), { padding: [60, 60], maxZoom: 16, animate: true });
   }, [overviewCount, map]);
 
   return null;
