@@ -74,10 +74,8 @@ function AutoFit({ startPos, endPos, routeCoordinates, recenterCount }) {
   useEffect(() => {
     if (routeCoordinates?.length > 0) {
       map.fitBounds(L.latLngBounds(routeCoordinates), { padding:[80,80], maxZoom:16 });
-    } else if (startPos && endPos) {
-      map.fitBounds(L.latLngBounds([startPos, endPos]), { padding:[80,80], maxZoom:16 });
     }
-  }, [routeCoordinates, startPos, endPos, map]);
+  }, [routeCoordinates]); // eslint-disable-line
 
   useEffect(() => {
     if (recenterCount === 0) return;
