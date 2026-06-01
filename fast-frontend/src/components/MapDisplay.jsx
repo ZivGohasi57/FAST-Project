@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
@@ -66,6 +66,7 @@ function PanDetector({ onUserPan }) {
 
 function AutoFit({ startPos, endPos, routeCoordinates, isFollowing }) {
   const map = useMap();
+  const prevFollowingRef = useRef(isFollowing);
 
   useEffect(() => {
     if (routeCoordinates?.length > 0) {
@@ -73,8 +74,11 @@ function AutoFit({ startPos, endPos, routeCoordinates, isFollowing }) {
     } else if (startPos && endPos) {
       map.fitBounds(L.latLngBounds([startPos, endPos]), { padding:[80,80], maxZoom:16 });
     } else if (startPos?.[0] && isFollowing) {
-      map.setView(startPos, Math.max(map.getZoom(), 15), { animate: true });
+      const justEnabled = !prevFollowingRef.current && isFollowing;
+      const zoom = justEnabled ? 17 : Math.max(map.getZoom(), 15);
+      map.setView(startPos, zoom, { animate: true });
     }
+    prevFollowingRef.current = isFollowing;
   }, [startPos, endPos, routeCoordinates, isFollowing, map]);
   return null;
 }

@@ -581,28 +581,38 @@ export default function DriverView() {
         </div>
       )}
 
-      {routeInfo && !searchOpen && (
-        <div style={{
-          position: 'absolute',
-          bottom: BOTTOM_H,
-          left: '50%', transform: 'translateX(-50%)',
-          zIndex: 490, whiteSpace: 'nowrap',
-          background: 'rgba(26,26,46,0.92)', backdropFilter: 'blur(10px)',
-          borderRadius: 24, padding: '9px 20px',
-          display: 'flex', gap: 14, alignItems: 'center',
-          color: 'white', fontSize: 14, fontWeight: 700,
-          boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-        }}>
-          <span>{fmtDist(routeInfo.distance)}</span>
-          <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
-          <span style={{ color: isEmergency ? '#ff9f9f' : '#90d5ff' }}>{fmtTime(routeInfo.time)}</span>
-        </div>
-      )}
+      {routeInfo && !searchOpen && (() => {
+        const arrival = new Date(Date.now() + routeInfo.time * 1000)
+          .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+        return (
+          <div style={{
+            position: 'absolute',
+            bottom: BOTTOM_H,
+            left: '50%', transform: 'translateX(-50%)',
+            zIndex: 490, whiteSpace: 'nowrap',
+            background: 'rgba(26,26,46,0.92)', backdropFilter: 'blur(10px)',
+            borderRadius: 24, padding: '9px 20px',
+            display: 'flex', gap: 14, alignItems: 'center',
+            color: 'white', fontSize: 14, fontWeight: 700,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          }}>
+            <span>{fmtDist(routeInfo.distance)}</span>
+            <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
+            <span style={{ color: isEmergency ? '#ff9f9f' : '#90d5ff' }}>{fmtTime(routeInfo.time)}</span>
+            <span style={{ opacity: 0.3, fontWeight: 300 }}>|</span>
+            <span style={{ fontSize: 13, opacity: 0.85 }}>יגיע: {arrival}</span>
+          </div>
+        );
+      })()}
 
       {!isFollowing && !searchOpen && (
         <button onClick={() => setIsFollowing(true)} style={{
           position: 'absolute',
-          bottom: `calc(${routeInfo ? 162 : 116}px + env(safe-area-inset-bottom, 0px))`,
+          bottom: (() => {
+            const arriveVisible = activeCase && activeCase.status === 'active' && !arrivedAtScene;
+            const base = arriveVisible ? 180 : 116;
+            return `calc(${routeInfo ? base + 58 : base + 10}px + env(safe-area-inset-bottom, 0px))`;
+          })(),
           right: 16, zIndex: 495,
           width: 50, height: 50, borderRadius: '50%',
           background: 'white', boxShadow: '0 3px 20px rgba(0,0,0,0.22)',
