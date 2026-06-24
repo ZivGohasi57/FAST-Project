@@ -230,9 +230,6 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
 
     private FASTGraphHopper buildHopper(String osmFile, String graphCacheDir, DualCarriagewayDetector dualDetector) {
         FASTGraphHopper gh = new FASTGraphHopper();
-        gh.setOSMFile(osmFile);
-        gh.setGraphHopperLocation(graphCacheDir);
-
         gh.setImportRegistry(new AmbulanceImportRegistry(dualDetector));
 
         GraphHopperConfig config = new GraphHopperConfig();
@@ -242,6 +239,11 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
                 "footway,cycleway,path,pedestrian,steps");
 
         gh.init(config);
+
+        // setOSMFile / setGraphHopperLocation must come after init() — init() reads its
+        // location from the config and will overwrite anything set before it is called.
+        gh.setOSMFile(osmFile);
+        gh.setGraphHopperLocation(graphCacheDir);
 
         CustomModel routineModel = new CustomModel()
                 .setDistanceInfluence(15.0)
