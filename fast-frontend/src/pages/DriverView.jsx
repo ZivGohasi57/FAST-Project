@@ -414,7 +414,7 @@ export default function DriverView() {
 
   useEffect(() => {
     if (startPos && endPos) fetchRoute(isEmergency, startPos, endPos);
-  }, [startPos, endPos]); // eslint-disable-line
+  }, [startPos, endPos]);
 
   const fetchRoute = useCallback(async (emergency, start, end, shouldRecenter = false) => {
     if (!start || !end) return;
@@ -491,7 +491,6 @@ export default function DriverView() {
   return (
     <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
-      {/* MAP AREA — fills all space above the bar */}
       <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
         <MapDisplay
           routeCoordinates={routeCoords}
@@ -530,7 +529,6 @@ export default function DriverView() {
           ) : null;
         })()}
 
-        {/* Route info chip — manual navigation only */}
         {routeInfo && !searchOpen && !activeCase && (() => {
           const arrival = new Date(Date.now() + routeInfo.time * 1000)
             .toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
@@ -554,7 +552,6 @@ export default function DriverView() {
           );
         })()}
 
-        {/* Waze-style buttons — lower-right of map area */}
         {!searchOpen && (
           <div style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 495, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
             {inOverview && (
@@ -585,7 +582,6 @@ export default function DriverView() {
         )}
       </div>
 
-      {/* BOTTOM BAR — compact, in normal flow */}
       <div style={{ flexShrink: 0, background: 'white', borderRadius: '20px 20px 0 0', boxShadow: '0 -3px 20px rgba(0,0,0,0.08)' }}>
 
         <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 7, paddingBottom: 1 }}>
@@ -687,7 +683,6 @@ export default function DriverView() {
         </div>
       </div>
 
-      {/* FULL-SCREEN MODALS — cover both map and bar */}
       {newCaseAlert && activeCase && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
           onClick={() => setNewCaseAlert(false)}>

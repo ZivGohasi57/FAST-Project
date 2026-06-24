@@ -69,13 +69,13 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
 
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map.Entry<Integer, CongestionLevel> entry : congestion.entrySet()) {
-            int edgeId = entry.getKey();
-            CongestionLevel level = entry.getValue();
+            int edgeId = entry.getKey(); // road segment id
+            CongestionLevel level = entry.getValue(); // CongestionLevel for specific road segment
 
-            EdgeIteratorState edge = graph.getEdgeIteratorState(edgeId, Integer.MIN_VALUE);
+            EdgeIteratorState edge = graph.getEdgeIteratorState(edgeId, Integer.MIN_VALUE); // min int mean no matter the direction of the road
             if (edge == null) continue;
 
-            PointList pts = edge.fetchWayGeometry(FetchMode.ALL);
+            PointList pts = edge.fetchWayGeometry(FetchMode.ALL); // import all of the pts of the road segment 
             if (pts.isEmpty()) continue;
 
             List<double[]> points = new ArrayList<>(pts.size());
@@ -240,9 +240,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
                 "car_access, car_average_speed, ambulance_access, ambulance_average_speed, road_class, surface");
         config.putObject("import.osm.ignored_highways",
                 "footway,cycleway,path,pedestrian,steps");
+
         gh.init(config);
-        gh.setOSMFile(osmFile);
-        gh.setGraphHopperLocation(graphCacheDir);
 
         CustomModel routineModel = new CustomModel()
                 .setDistanceInfluence(15.0)

@@ -6,7 +6,7 @@ import { API_BASE } from '../config.js';
 export default function AmbulanceSelectPage() {
   const [ambulances, setAmbulances] = useState([]);
   const [loading,    setLoading]    = useState(true);
-  const [assigning,  setAssigning]  = useState(null); // ambulanceId being assigned
+  const [assigning,  setAssigning]  = useState(null);
   const [error,      setError]      = useState('');
   const navigate = useNavigate();
 
@@ -18,7 +18,7 @@ export default function AmbulanceSelectPage() {
       .then(r => setAmbulances(r.data))
       .catch(() => setError('שגיאה בטעינת האמבולנסים'))
       .finally(() => setLoading(false));
-  }, []); // eslint-disable-line
+  }, []);
 
   const handleSelect = async (amb) => {
     setAssigning(amb.id);

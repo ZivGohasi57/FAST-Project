@@ -18,7 +18,11 @@ export default function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
-      if (!res.ok) { setError('שם משתמש או סיסמה שגויים'); setLoading(false); return; }
+      if (!res.ok) {
+        setError('שם משתמש או סיסמה שגויים'); 
+        setLoading(false); 
+        return; 
+      }
       const data = await res.json();
       sessionStorage.setItem('fastAuth', JSON.stringify(data));
       if (data.role === 'driver')          navigate('/pick-ambulance');

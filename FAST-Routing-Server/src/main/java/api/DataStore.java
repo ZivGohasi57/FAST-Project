@@ -159,6 +159,11 @@ public class DataStore {
         httpDelete(BASE_URL + "/" + col + "/" + id);
         cache.remove(col);
     }
+    
+
+
+
+
 
     private List<Map<String, Object>> listCol(String col) {
         CacheEntry entry = cache.get(col);
@@ -188,6 +193,7 @@ public class DataStore {
         putDoc("counters", "sequences", doc);
         return cur;
     }
+
 
     private void seedIfEmpty() {
         if (!listCol("users").isEmpty()) return;

@@ -95,7 +95,6 @@ public class TrafficSimulator {
                 if (isUrban) {
                     urbanEdges.add(edgeId);
                 } else {
-                    // Edge moves away from center → outbound; towards center → inbound
                     double distBase = distToCenter(baseLat, baseLon);
                     double distAdj  = distToCenter(adjLat,  adjLon);
                     if (distAdj >= distBase) outboundPrimaryEdges.add(edgeId);
@@ -117,6 +116,7 @@ public class TrafficSimulator {
             }
         }
     }
+
 
     private void logEdgeCounts() {
         System.out.printf("[TrafficSim] Edge counts — outPrimary:%d  inPrimary:%d  " +
@@ -152,7 +152,6 @@ public class TrafficSimulator {
         switch (getTimeOfDay()) {
 
             case MORNING_RUSH -> {
-                // Outbound roads are congested; urban core is busy
                 createJams(outboundPrimaryEdges,   0.65, 5);
                 createJams(outboundSecondaryEdges, 0.45, 4);
                 createJams(inboundPrimaryEdges,    0.10, 2);
@@ -163,7 +162,6 @@ public class TrafficSimulator {
             }
 
             case EVENING_RUSH -> {
-                // Inbound roads are congested; urban core is busy
                 createJams(inboundPrimaryEdges,    0.65, 5);
                 createJams(inboundSecondaryEdges,  0.45, 4);
                 createJams(outboundPrimaryEdges,   0.10, 2);
@@ -174,14 +172,12 @@ public class TrafficSimulator {
             }
 
             case NIGHT -> {
-                // Minimal traffic — only an occasional primary jam
                 createJams(outboundPrimaryEdges, 0.05, 1);
                 createJams(inboundPrimaryEdges,  0.05, 1);
                 createJams(urbanEdges,           0.05, 1);
             }
 
             default -> {
-                // Normal hours — primary/urban roads are somewhat busier
                 createJams(outboundPrimaryEdges,   0.30, 3);
                 createJams(inboundPrimaryEdges,    0.30, 3);
                 createJams(outboundSecondaryEdges, 0.20, 2);

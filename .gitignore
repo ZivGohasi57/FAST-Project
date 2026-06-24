@@ -85,3 +85,10 @@ fast-frontend/README.md
 # ============================================
 deploy/config.env
 fast-frontend/.env.production
+
+
+# ============================================
+# Personal docx files
+# ============================================
+FAST_Project_Summary.docx
+PROJECT_SUMMARY.md

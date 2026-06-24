@@ -17,6 +17,11 @@ public class AmbulanceInfo {
         this.id = id; this.driverId = driverId; this.driverName = driverName;
         this.lat = lat; this.lon = lon; this.status = status;
     }
+
+
+
+
+    
     public String  getId()                        { return id; }
     public String  getDriverId()                  { return driverId; }
     public String  getDriverName()                { return driverName; }
