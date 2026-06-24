@@ -233,17 +233,14 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         gh.setImportRegistry(new AmbulanceImportRegistry(dualDetector));
 
         GraphHopperConfig config = new GraphHopperConfig();
+        config.putObject("graph.location", graphCacheDir);
         config.putObject("graph.encoded_values",
                 "car_access, car_average_speed, ambulance_access, ambulance_average_speed, road_class, surface");
         config.putObject("import.osm.ignored_highways",
                 "footway,cycleway,path,pedestrian,steps");
 
-        gh.init(config);
-
-        // setOSMFile / setGraphHopperLocation must come after init() — init() reads its
-        // location from the config and will overwrite anything set before it is called.
         gh.setOSMFile(osmFile);
-        gh.setGraphHopperLocation(graphCacheDir);
+        gh.init(config);
 
         CustomModel routineModel = new CustomModel()
                 .setDistanceInfluence(15.0)
