@@ -10,8 +10,8 @@ import java.util.*;
 
 public class DualCarriagewayDetector extends DefaultHandler {
 
-    private static final double PARALLEL_MAX_DIST_M    = 40.0;
-    private static final double PARALLEL_ANGLE_TOL_DEG = 45.0;
+    private static final double PARALLEL_MAX_DIST_M    = 40.0; // if 2 oneway roads are 40 meters from each others center then they are dual carridge
+    private static final double PARALLEL_ANGLE_TOL_DEG = 45.0; // angle tolerance for parallel roads
     private static final double CELL_M   = 60.0;
     private static final double CELL_LAT = CELL_M / 111_320.0;
     private static final double CELL_LON = CELL_M / (111_320.0 * Math.cos(Math.toRadians(32.0)));

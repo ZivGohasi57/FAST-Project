@@ -12,6 +12,9 @@ import com.graphhopper.routing.util.parsers.CarAccessParser;
 import com.graphhopper.util.PMap;
 import routing.DualCarriagewayDetector;
 
+
+/// ambulanceaccessparser - set ambulance access rules, ambu;ance can access wherever car can.
+/// and ambulance can go contraflow if not on highway
 public class AmbulanceAccessParser extends CarAccessParser {
 
     private final DualCarriagewayDetector dualDetector;

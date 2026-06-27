@@ -5,17 +5,8 @@ import com.graphhopper.routing.ev.FerrySpeed;
 import com.graphhopper.routing.ev.VehicleSpeed;
 import com.graphhopper.routing.util.parsers.CarAverageSpeedParser;
 
-/**
- * Speed parser for ambulance vehicles.
- *
- * Extends CarAverageSpeedParser using the ambulance_average_speed encoded value instead of
- * car_average_speed. Both forward and backward speeds are set for every motor road, which
- * (combined with AmbulanceAccessParser's bidirectional access) enables contraflow routing
- * in the emergency profile.
- *
- * Speed values are identical to car speeds — the CustomModel's speed statements
- * can apply multipliers at routing time.
- */
+/// retrieve information on possible speed for ambulance based on car speed.
+/// ambulance can go both ways with car speed because of contraflow
 public class AmbulanceSpeedParser extends CarAverageSpeedParser {
 
     public AmbulanceSpeedParser(EncodedValueLookup lookup) {

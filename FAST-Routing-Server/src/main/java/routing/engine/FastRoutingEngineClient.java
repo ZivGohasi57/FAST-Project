@@ -61,6 +61,14 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return hopper.getTrafficData();
     }
 
+    /// Function Name: gettrafficoverlay
+    /// purpuse:  return list of all congested routes
+    /// improtant functions: 
+    /// hopper.getTrafficData().getAllCongestion() - return congestion level by road
+    ///  hopper.getEncodingManager().getDecimalEncodedValue(VehicleSpeed.key("car") - return the speed from the encoded 
+    ///  value of the edge 
+    /// 
+    ///
     public List<Map<String, Object>> getTrafficOverlay() {
         BaseGraph graph = hopper.getBaseGraph();
         Map<Integer, CongestionLevel> congestion = hopper.getTrafficData().getAllCongestion();
@@ -152,6 +160,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return new RouteResponse(path.getDistance(), timeSec, coordinates, steps);
     }
 
+    /// Function Name: pathusescontraflow
+    /// purpuse:  check if route uses contraflow
     private boolean pathUsesContraflow(ResponsePath path) {
         Map<String, List<PathDetail>> details = path.getPathDetails();
         if (details == null) return false;
@@ -161,6 +171,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return false;
     }
 
+/// Function Name: buildsteps
+    /// purpuse:  build route by instruction like: turn right, roundabout etc.
     private List<StepInstruction> buildSteps(ResponsePath path, boolean isEmergency) {
         InstructionList instructions = path.getInstructions();
 
@@ -201,6 +213,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
         return steps;
     }
 
+/// Function Name: calculatetime
+    /// purpuse:  calculate the cummulative delay time based on which intersections we go thorugh
     private long calculateTime(ResponsePath path, boolean isEmergency) {
         double driveTimeSec = path.getTime() / 1000.0;
 
@@ -227,7 +241,8 @@ public class FastRoutingEngineClient implements IRoutingEngineClient {
 
         return Math.round(driveTimeSec + intersectionDelay);
     }
-
+/// Function Name: buildhopper
+    /// purpuse:  the "main" function, builds the graph and emergency and routine profiles
     private FASTGraphHopper buildHopper(String osmFile, String graphCacheDir, DualCarriagewayDetector dualDetector) {
         FASTGraphHopper gh = new FASTGraphHopper();
         gh.setImportRegistry(new AmbulanceImportRegistry(dualDetector));

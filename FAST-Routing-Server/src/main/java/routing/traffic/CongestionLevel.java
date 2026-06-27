@@ -1,5 +1,5 @@
 package routing.traffic;
-
+/// speed multipliers based on congestion level
 public enum CongestionLevel {
 
     LIGHT(0.70),
