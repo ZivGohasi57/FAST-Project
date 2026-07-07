@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
@@ -8,14 +8,14 @@ const NOMINATIM  = 'https://nominatim.openstreetmap.org/search';
 const MAP_CENTER = [32.1501, 34.8914];
 const TRAFFIC_COLOR = { LIGHT: '#ffd60a', MEDIUM: '#ff9500', HEAVY: '#ff3b30' };
 const TRAFFIC_LABEL = { LIGHT: 'פקק קל', MEDIUM: 'פקק בינוני', HEAVY: 'פקק כבד' };
+const GRADIENT_AVAILABLE = 'linear-gradient(135deg,#34c759,#28a745)';
+const GRADIENT_BUSY      = 'linear-gradient(135deg,#ff9500,#e67e00)';
 
-const makeAmbIcon = (gradient) => L.divIcon({
+const makeAmbIcon = (gradient, tracked) => L.divIcon({
   className: '',
-  html: `<div style="width:36px;height:36px;border-radius:50%;background:${gradient};display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 2.5px white;">🚑</div>`,
+  html: `<div style="width:36px;height:36px;border-radius:50%;background:${gradient};display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 ${tracked ? '4px #007aff' : '2.5px white'};">🚑</div>`,
   iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
 });
-const iconAvailable = makeAmbIcon('linear-gradient(135deg,#34c759,#28a745)');
-const iconBusy      = makeAmbIcon('linear-gradient(135deg,#ff9500,#e67e00)');
 const iconEvent     = L.divIcon({
   className: '',
   html: `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ff3b30,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 2.5px white;">📍</div>`,
@@ -27,13 +27,36 @@ const iconHospital  = L.divIcon({
   iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -34],
 });
 
-function AutoFit({ points }) {
+function MapController({ points, fitAllTrigger, trackedAmbulanceId, ambulances, onUserInteract }) {
   const map = useMap();
+  const programmaticRef = useRef(false);
+  const pointsRef = useRef(points);
+  pointsRef.current = points;
+
+  useMapEvents({
+    dragstart: () => onUserInteract(),
+    zoomstart: () => { if (!programmaticRef.current) onUserInteract(); },
+  });
+
   useEffect(() => {
-    if (!points?.length) return;
-    if (points.length === 1) { map.setView(points[0], 14); return; }
-    map.fitBounds(L.latLngBounds(points), { padding: [60, 60], maxZoom: 15 });
-  }, [JSON.stringify(points)]);
+    if (fitAllTrigger === 0) return;
+    const pts = pointsRef.current;
+    if (!pts?.length) return;
+    programmaticRef.current = true;
+    if (pts.length === 1) map.setView(pts[0], 14);
+    else map.fitBounds(L.latLngBounds(pts), { padding: [60, 60], maxZoom: 15 });
+    setTimeout(() => { programmaticRef.current = false; }, 400);
+  }, [fitAllTrigger, map]);
+
+  useEffect(() => {
+    if (!trackedAmbulanceId) return;
+    const amb = ambulances.find(a => a.id === trackedAmbulanceId);
+    if (!amb) return;
+    programmaticRef.current = true;
+    map.setView([amb.lat, amb.lon], Math.max(map.getZoom(), 15), { animate: true });
+    setTimeout(() => { programmaticRef.current = false; }, 500);
+  }, [trackedAmbulanceId, ambulances, map]);
+
   return null;
 }
 
@@ -90,9 +113,19 @@ export default function DispatcherDashboard() {
   const [addressSaved,     setAddressSaved]     = useState(false);
   const editAddressTimer   = useRef(null);
 
+  const [trackedAmbulanceId, setTrackedAmbulanceId] = useState(null);
+  const [fitAllTrigger,      setFitAllTrigger]      = useState(0);
+  const initialFitDoneRef = useRef(false);
+
   useEffect(() => {
     const fetch = () =>
-      axios.get(`${API_BASE}/api/ambulances`).then(r => setAmbulances(r.data)).catch(() => {});
+      axios.get(`${API_BASE}/api/ambulances`).then(r => {
+        setAmbulances(r.data);
+        if (!initialFitDoneRef.current && r.data.length > 0) {
+          initialFitDoneRef.current = true;
+          setFitAllTrigger(c => c + 1);
+        }
+      }).catch(() => {});
     fetch();
     const iv = setInterval(fetch, 5000);
     return () => clearInterval(iv);
@@ -154,6 +187,12 @@ export default function DispatcherDashboard() {
       params: { startLat: amb.lat, startLon: amb.lon, endLat: target.lat, endLon: target.lon, isEmergency: activeCase.urgency === 'emergency' },
     }).then(({ data }) => { if (data?.path) setAssignedRoute(data.path.map(p => [p.lat, p.lon])); }).catch(() => {});
   }, [activeCase?.id, activeCase?.hospitalId, ambulances]);
+
+  useEffect(() => {
+    if (!activeCase?.id) return;
+    setTrackedAmbulanceId(null);
+    setFitAllTrigger(c => c + 1);
+  }, [activeCase?.id]);
 
   useEffect(() => {
     setPatientDraft(activeCase?.patientDetails || '');
@@ -269,6 +308,10 @@ export default function DispatcherDashboard() {
     setActiveCase(null);
     setTab('missions');
   };
+
+  const handleUserMapInteract = () => setTrackedAmbulanceId(null);
+
+  const toggleTrackAmbulance = (id) => setTrackedAmbulanceId(prev => prev === id ? null : id);
 
   const handleComplete = async () => {
     if (!activeCase) return;
@@ -679,9 +722,34 @@ export default function DispatcherDashboard() {
             ← חזור
           </button>
         )}
+
+        {trackedAmbulanceId && (
+          <div style={{
+            position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 14px)', left: 14, zIndex: 999,
+            background: '#1a1a2e', color: 'white', borderRadius: 20, padding: '8px 14px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 13, fontWeight: 600, direction: 'rtl',
+          }}>
+            <span>🎯 עוקב אחרי אמב. {ambulances.find(a => a.id === trackedAmbulanceId)?.ambulanceNumber || trackedAmbulanceId.replace('amb-', '')}</span>
+            <button onClick={() => setTrackedAmbulanceId(null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 12, color: 'white', cursor: 'pointer', fontSize: 12, padding: '3px 10px', fontFamily: 'inherit' }}>
+              עצור
+            </button>
+          </div>
+        )}
+
+        <button onClick={() => setFitAllTrigger(c => c + 1)} style={{
+          position: 'absolute', bottom: 16, left: 14, zIndex: 999,
+          background: 'white', border: 'none', borderRadius: 20,
+          padding: '9px 16px', fontWeight: 700, fontSize: 13,
+          boxShadow: '0 2px 10px rgba(0,0,0,0.2)', cursor: 'pointer',
+          direction: 'rtl', display: 'flex', alignItems: 'center', gap: 6,
+        }}>
+          🗺 הצג הכל
+        </button>
+
         <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%' }} attributionControl={false}>
           <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
-          {mapPoints.length > 0 && <AutoFit points={mapPoints} />}
+          <MapController points={mapPoints} fitAllTrigger={fitAllTrigger} trackedAmbulanceId={trackedAmbulanceId} ambulances={ambulances} onUserInteract={handleUserMapInteract} />
           {trafficSegments.map((seg, i) => (
             <Polyline key={i} positions={seg.points.map(p => [p[0], p[1]])}
               color={TRAFFIC_COLOR[seg.level] ?? '#ff9500'} weight={5} opacity={0.80}>
@@ -693,13 +761,16 @@ export default function DispatcherDashboard() {
             </Polyline>
           ))}
           {ambulances.filter(amb => amb.driverId && amb.driverId.trim() !== '').map(amb => (
-            <Marker key={amb.id} position={[amb.lat, amb.lon]} icon={amb.status === 'available' ? iconAvailable : iconBusy}>
+            <Marker key={amb.id} position={[amb.lat, amb.lon]}
+              icon={makeAmbIcon(amb.status === 'available' ? GRADIENT_AVAILABLE : GRADIENT_BUSY, trackedAmbulanceId === amb.id)}
+              eventHandlers={{ click: () => toggleTrackAmbulance(amb.id) }}>
               <Popup><div style={{ direction: 'rtl', minWidth: 130, fontSize: 13 }}>
                 <b>🚑 אמב. {amb.ambulanceNumber || amb.id?.replace('amb-', '')}</b><br />
                 {amb.driverName && <span style={{ color: '#888', fontSize: 12 }}>{amb.driverName}<br /></span>}
                 <span style={{ color: amb.status === 'available' ? '#34c759' : '#ff9500', fontWeight: 600 }}>
                   ● {amb.status === 'available' ? 'זמין' : 'עסוק'}
-                </span>
+                </span><br />
+                <span style={{ color: '#007aff', fontSize: 11 }}>{trackedAmbulanceId === amb.id ? 'לחץ להפסקת מעקב' : 'לחץ למעקב'}</span>
               </div></Popup>
             </Marker>
           ))}
