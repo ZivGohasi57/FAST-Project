@@ -310,6 +310,7 @@ public class DataStore {
         doc.put("hospitalName", h.getName());
         doc.put("hospitalLat", h.getLat());
         doc.put("hospitalLon", h.getLon());
+        appendNote(doc, "🏥 הוחלט על פינוי לבית חולים: " + h.getName());
         doc.remove("id");
         putDoc("cases", caseId, doc);
     }
@@ -399,16 +400,18 @@ public class DataStore {
                 .map(this::toCase).findFirst().orElse(null);
     }
 
+    private void appendNote(Map<String, Object> doc, String text) {
+        String ts  = new java.text.SimpleDateFormat("HH:mm").format(new Date());
+        String cur = (String) doc.get("notes");
+        doc.put("notes", (cur == null || cur.isEmpty())
+                ? "[" + ts + "] " + text
+                : cur + "\n[" + ts + "] " + text);
+    }
+
     public void updateCaseNotes(String caseId, String notes, String patientDetails) {
         Map<String, Object> doc = getDoc("cases", caseId);
         if (doc == null) return;
-        if (notes != null) {
-            String ts  = new java.text.SimpleDateFormat("HH:mm").format(new Date());
-            String cur = (String) doc.get("notes");
-            doc.put("notes", (cur == null || cur.isEmpty())
-                    ? "[" + ts + "] " + notes
-                    : cur + "\n[" + ts + "] " + notes);
-        }
+        if (notes != null) appendNote(doc, notes);
         if (patientDetails != null) doc.put("patientDetails", patientDetails);
         doc.remove("id");
         putDoc("cases", caseId, doc);
@@ -426,6 +429,10 @@ public class DataStore {
         Map<String, Object> doc = getDoc("cases", caseId);
         if (doc == null) return;
         String ambId = (String) doc.get("assignedAmbulanceId");
+        String hospitalName = (String) doc.get("hospitalName");
+        if (hospitalName != null && !hospitalName.isEmpty()) {
+            appendNote(doc, "✅ פינוי לבית החולים \"" + hospitalName + "\" הושלם");
+        }
         doc.put("status", "completed"); doc.remove("id");
         putDoc("cases", caseId, doc);
         if (ambId != null) {

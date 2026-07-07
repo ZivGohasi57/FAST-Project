@@ -492,6 +492,10 @@ export default function ManagerSuite() {
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 10, marginBottom: 12 }}>
                           {c.description && <div style={s.detailBox}><div style={s.detailLabel}>תיאור האירוע</div><div>{c.description}</div></div>}
                           {c.patientDetails && <div style={s.detailBox}><div style={s.detailLabel}>פרטי מטופל</div><div>{c.patientDetails}</div></div>}
+                          <div style={s.detailBox}>
+                            <div style={s.detailLabel}>פינוי לבית חולים</div>
+                            <div>{c.hospitalName ? `🏥 ${c.hospitalName}` : 'לא בוצע פינוי'}</div>
+                          </div>
                         </div>
                         {c.notes ? (
                           <div>

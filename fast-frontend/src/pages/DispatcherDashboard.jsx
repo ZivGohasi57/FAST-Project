@@ -21,6 +21,11 @@ const iconEvent     = L.divIcon({
   html: `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ff3b30,#ff6b35);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 2.5px white;">📍</div>`,
   iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -34],
 });
+const iconHospital  = L.divIcon({
+  className: '',
+  html: `<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#ff3b30,#c62828);display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 2.5px white;">🏥</div>`,
+  iconSize: [32, 32], iconAnchor: [16, 32], popupAnchor: [0, -34],
+});
 
 function AutoFit({ points }) {
   const map = useMap();
@@ -68,6 +73,7 @@ export default function DispatcherDashboard() {
   const [error,         setError]         = useState('');
   const [tab,           setTab]           = useState('new');
   const [missions,      setMissions]      = useState([]);
+  const [evacCompleteNotice, setEvacCompleteNotice] = useState(null);
   const [trafficSegments, setTrafficSegments] = useState([]);
   const searchTimer        = useRef(null);
   const missionsFetchedRef = useRef(false);
@@ -96,18 +102,43 @@ export default function DispatcherDashboard() {
         .then(r => {
           const active = r.data.filter(c => c.status === 'active' || c.status === 'cancel_requested');
           setMissions(active);
-          if (!missionsFetchedRef.current) {
-            missionsFetchedRef.current = true;
-            if (active.length > 0) {
-              setActiveCase(prev => prev ?? active[0]);
+
+          setActiveCase(prev => {
+            if (!prev) {
+              return (!missionsFetchedRef.current && active.length > 0) ? active[0] : prev;
             }
-          }
+            const fresh = active.find(c => c.id === prev.id);
+            if (fresh) return fresh;
+            const finished = r.data.find(c => c.id === prev.id);
+            if (finished?.status === 'completed' && prev.hospitalName) {
+              setEvacCompleteNotice({ hospitalName: prev.hospitalName, address: prev.address });
+              setAssignedRoute([]);
+            }
+            return null;
+          });
+
+          missionsFetchedRef.current = true;
         })
         .catch(() => { missionsFetchedRef.current = true; });
     fetchMissions();
     const iv = setInterval(fetchMissions, 5000);
     return () => clearInterval(iv);
   }, []);
+
+  useEffect(() => {
+    if (!evacCompleteNotice) return;
+    const t = setTimeout(() => setEvacCompleteNotice(null), 10000);
+    return () => clearTimeout(t);
+  }, [evacCompleteNotice]);
+
+  useEffect(() => {
+    if (!activeCase?.hospitalId || !activeCase?.assignedAmbulanceId) return;
+    const amb = ambulances.find(a => a.id === activeCase.assignedAmbulanceId);
+    if (!amb) return;
+    axios.get(`${API_BASE}/api/route`, {
+      params: { startLat: amb.lat, startLon: amb.lon, endLat: activeCase.hospitalLat, endLon: activeCase.hospitalLon, isEmergency: activeCase.urgency === 'emergency' },
+    }).then(({ data }) => { if (data?.path) setAssignedRoute(data.path.map(p => [p.lat, p.lon])); }).catch(() => {});
+  }, [activeCase?.hospitalId, ambulances]);
 
   const onAddressChange = (val) => {
     setAddress(val); setEventPos(null); setSuggestions([]);
@@ -195,6 +226,7 @@ export default function DispatcherDashboard() {
   const mapPoints = [
     ...ambulances.map(a => [a.lat, a.lon]),
     ...(eventPos ? [[eventPos.lat, eventPos.lon]] : []),
+    ...(activeCase?.hospitalLat ? [[activeCase.hospitalLat, activeCase.hospitalLon]] : []),
   ];
 
   const panelStyle = {
@@ -241,6 +273,14 @@ export default function DispatcherDashboard() {
         {error && (
           <div style={{ background: '#fff0ef', color: '#c0392b', padding: '10px 16px', fontSize: 13, borderBottom: '1px solid #ffd5d0', flexShrink: 0 }}>
             ⚠️ {error}
+          </div>
+        )}
+
+        {evacCompleteNotice && (
+          <div style={{ background: '#e8f5e9', color: '#2e7d32', padding: '10px 16px', fontSize: 13, borderBottom: '1px solid #a5d6a7', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>🏥</span>
+            <span style={{ flex: 1 }}>פינוי הסתיים — {evacCompleteNotice.address} פונה בהצלחה ל{evacCompleteNotice.hospitalName}</span>
+            <button onClick={() => setEvacCompleteNotice(null)} style={{ background: 'none', border: 'none', color: '#2e7d32', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit' }}>✕</button>
           </div>
         )}
 
@@ -408,6 +448,11 @@ export default function DispatcherDashboard() {
                   ? <div style={{ color: '#ff3b30', fontWeight: 600 }}>🚨 חירום</div>
                   : <div style={{ color: '#34c759', fontWeight: 600 }}>🚗 שגרה</div>}
               </div>
+              {activeCase.hospitalName && (
+                <div style={{ marginTop: 8, background: '#fff0ef', border: '1px solid #ffb3ab', borderRadius: 8, padding: '7px 10px', fontSize: 12, color: '#c0392b', fontWeight: 600 }}>
+                  🏥 מפנה לבית חולים: {activeCase.hospitalName}
+                </div>
+              )}
             </div>
 
             <div style={s.sectionTitle}>עדכון מצב לצוות</div>
@@ -470,6 +515,9 @@ export default function DispatcherDashboard() {
                   <div>📍 {m.address}</div>
                   <div>🚑 אמב. {ambulances.find(a => a.id === m.assignedAmbulanceId)?.ambulanceNumber || m.assignedAmbulanceId?.replace('amb-', '') || m.assignedDriverName}</div>
                   {m.patientDetails && <div>👤 {m.patientDetails}</div>}
+                  {m.hospitalName && (
+                    <div style={{ color: '#c0392b', fontWeight: 600 }}>🏥 מפנה לבית חולים: {m.hospitalName}</div>
+                  )}
                 </div>
                 <button
                   onClick={() => handleCancelCase(m.id)}
@@ -535,6 +583,11 @@ export default function DispatcherDashboard() {
           {eventPos && (
             <Marker position={[eventPos.lat, eventPos.lon]} icon={iconEvent}>
               <Popup><div style={{ direction: 'rtl', fontSize: 13 }}><b>📍 מיקום האירוע</b><br /><span style={{ color: '#666' }}>{eventPos.label}</span></div></Popup>
+            </Marker>
+          )}
+          {activeCase?.hospitalLat && (
+            <Marker position={[activeCase.hospitalLat, activeCase.hospitalLon]} icon={iconHospital}>
+              <Popup><div style={{ direction: 'rtl', fontSize: 13 }}><b>🏥 יעד פינוי</b><br /><span style={{ color: '#666' }}>{activeCase.hospitalName}</span></div></Popup>
             </Marker>
           )}
           {assignedRoute.length > 0 && (
