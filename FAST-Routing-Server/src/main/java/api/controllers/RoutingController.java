@@ -457,35 +457,51 @@ public class RoutingController {
         @Override
         public void handle(HttpExchange ex) throws IOException {
             if (handleOptions(ex)) return;
-            if (!"GET".equals(ex.getRequestMethod())) { sendStatus(ex, 405); return; }
+            String path   = ex.getRequestURI().getPath();
+            String suffix = path.length() > "/api/hospitals".length()
+                          ? path.substring("/api/hospitals".length()) : "";
+            String method = ex.getRequestMethod();
 
-            Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
-            List<Hospital> hospitals = new ArrayList<>(DS.allHospitals());
+            if ("GET".equals(method) && suffix.isEmpty()) {
+                Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
+                List<Hospital> hospitals = new ArrayList<>(DS.allHospitals());
 
-            if (!params.containsKey("lat") || !params.containsKey("lon")) {
-                sendJson(ex, hospitals);
-                return;
+                if (!params.containsKey("lat") || !params.containsKey("lon")) {
+                    sendJson(ex, hospitals);
+                    return;
+                }
+
+                double lat = Double.parseDouble(params.get("lat"));
+                double lon = Double.parseDouble(params.get("lon"));
+
+                List<Map<String, Object>> results = new ArrayList<>();
+                for (Hospital h : hospitals) {
+                    RouteRequest req = new RouteRequest(lat, lon, h.getLat(), h.getLon(), false);
+                    RouteResponse resp = new FastRoutingEngine(new RoutineRoutingStrategy(ENGINE_CLIENT)).getOptimalRoute(req);
+
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id",             h.getId());
+                    row.put("name",           h.getName());
+                    row.put("lat",            h.getLat());
+                    row.put("lon",            h.getLon());
+                    row.put("distanceMeters", resp.getTotalDistanceMeters());
+                    row.put("etaSeconds",     resp.getEstimatedTimeSeconds());
+                    results.add(row);
+                }
+                results.sort(Comparator.comparingLong(r -> ((Number) r.get("etaSeconds")).longValue()));
+                sendJson(ex, results);
+
+            } else if ("POST".equals(method) && "/update".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.updateHospital(json.get("id").getAsString(),
+                                   json.get("name").getAsString(),
+                                   json.get("lat").getAsDouble(),
+                                   json.get("lon").getAsDouble());
+                sendStatus(ex, 200);
+
+            } else {
+                sendStatus(ex, 404);
             }
-
-            double lat = Double.parseDouble(params.get("lat"));
-            double lon = Double.parseDouble(params.get("lon"));
-
-            List<Map<String, Object>> results = new ArrayList<>();
-            for (Hospital h : hospitals) {
-                RouteRequest req = new RouteRequest(lat, lon, h.getLat(), h.getLon(), false);
-                RouteResponse resp = new FastRoutingEngine(new RoutineRoutingStrategy(ENGINE_CLIENT)).getOptimalRoute(req);
-
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("id",             h.getId());
-                row.put("name",           h.getName());
-                row.put("lat",            h.getLat());
-                row.put("lon",            h.getLon());
-                row.put("distanceMeters", resp.getTotalDistanceMeters());
-                row.put("etaSeconds",     resp.getEstimatedTimeSeconds());
-                results.add(row);
-            }
-            results.sort(Comparator.comparingLong(r -> ((Number) r.get("etaSeconds")).longValue()));
-            sendJson(ex, results);
         }
     }
 

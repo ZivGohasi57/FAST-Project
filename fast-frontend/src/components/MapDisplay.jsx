@@ -14,6 +14,17 @@ const ambulanceIcon = L.divIcon({
   iconSize:[42,42], iconAnchor:[21,21], popupAnchor:[0,-24],
 });
 
+const hospitalIcon = L.divIcon({
+  className: '',
+  html: `<div style="
+    width:34px;height:34px;border-radius:50%;
+    background:linear-gradient(135deg,#ff3b30,#c62828);
+    display:flex;align-items:center;justify-content:center;
+    font-size:17px;
+    box-shadow:0 2px 12px rgba(0,0,0,0.5),0 0 0 3px white;">🏥</div>`,
+  iconSize:[34,34], iconAnchor:[17,17], popupAnchor:[0,-20],
+});
+
 const destIcon = L.divIcon({
   className: '',
   html: `<div style="
@@ -112,7 +123,7 @@ function SignalLayer({ signals }) {
   ));
 }
 
-function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount, overviewCount }) {
+function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount, overviewCount, hospitals }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
 
@@ -133,6 +144,10 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       <AutoFit startPos={startPos} recenterCount={recenterCount} overviewCount={overviewCount} routeCoordinates={routeCoordinates} />
       <TrafficLayer segments={trafficSegments} />
       <SignalLayer signals={trafficSignals} />
+
+      {hospitals?.map(h => (
+        <Marker key={h.id} position={[h.lat, h.lon]} icon={hospitalIcon}><Popup>🏥 {h.name}</Popup></Marker>
+      ))}
 
       {startPos && <Marker position={startPos} icon={ambulanceIcon}><Popup>מיקום נוכחי</Popup></Marker>}
       {endPos   && <Marker position={endPos}   icon={destIcon}><Popup>יעד</Popup></Marker>}

@@ -314,6 +314,14 @@ public class DataStore {
         putDoc("cases", caseId, doc);
     }
 
+    public void updateHospital(String id, String name, double lat, double lon) {
+        Map<String, Object> doc = getDoc("hospitals", id);
+        if (doc == null) return;
+        doc.put("name", name); doc.put("lat", lat); doc.put("lon", lon);
+        doc.remove("id");
+        putDoc("hospitals", id, doc);
+    }
+
     private Map<String, Object> hospitalToMap(Hospital h) {
         Map<String, Object> m = new HashMap<>();
         m.put("name", h.getName()); m.put("lat", h.getLat()); m.put("lon", h.getLon());

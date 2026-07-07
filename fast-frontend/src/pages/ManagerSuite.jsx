@@ -9,6 +9,7 @@ const MAP_CENTER = [32.1501, 34.8914];
 const TABS = [
   { id: 'users',       icon: '👥', label: 'משתמשים'    },
   { id: 'ambulances',  icon: '🚑', label: 'אמבולנסים'  },
+  { id: 'hospitals',   icon: '🏥', label: 'בתי חולים'  },
   { id: 'events',      icon: '📋', label: 'אירועים'     },
   { id: 'zones',       icon: '🚫', label: 'אזורי איסור' },
 ];
@@ -49,6 +50,12 @@ const makeAmbPickIcon = (isTarget) => L.divIcon({
   iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
 });
 
+const makeHospitalIcon = (isTarget) => L.divIcon({
+  className: '',
+  html: `<div style="width:36px;height:36px;border-radius:50%;background:${isTarget ? 'linear-gradient(135deg,#ff9500,#e67e00)' : 'linear-gradient(135deg,#ff3b30,#c62828)'};display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 8px rgba(0,0,0,0.4),0 0 0 ${isTarget ? '3px #ff9500' : '2px white'};">🏥</div>`,
+  iconSize: [36, 36], iconAnchor: [18, 18], popupAnchor: [0, -20],
+});
+
 const pickedPinIcon = L.divIcon({
   className: '',
   html: `<div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#34c759,#28a745);display:flex;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 8px rgba(0,0,0,0.5),0 0 0 3px white;">📍</div>`,
@@ -86,6 +93,15 @@ export default function ManagerSuite() {
   const [locationPickSaving, setLocationPickSaving] = useState(false);
   const [locationPickError,  setLocationPickError]  = useState('');
 
+  const [hospitals,           setHospitals]           = useState([]);
+  const [hospitalNameDrafts,  setHospitalNameDrafts]  = useState({});
+  const [hospitalSavingId,    setHospitalSavingId]    = useState(null);
+  const [hospitalError,       setHospitalError]       = useState('');
+  const [hospitalPickId,      setHospitalPickId]      = useState(null);
+  const [hospitalPickPos,     setHospitalPickPos]     = useState(null);
+  const [hospitalPickSaving,  setHospitalPickSaving]  = useState(false);
+  const [hospitalPickError,   setHospitalPickError]   = useState('');
+
   const [cases,        setCases]        = useState([]);
   const [expandedCase, setExpandedCase] = useState(null);
   const [eventFilter,  setEventFilter]  = useState('all');
@@ -105,6 +121,7 @@ export default function ManagerSuite() {
   useEffect(() => {
     if (tab === 'users')       fetchUsers();
     if (tab === 'ambulances')  fetchAmbulances();
+    if (tab === 'hospitals')   fetchHospitals();
     if (tab === 'events')      fetchCases();
     if (tab === 'zones')       fetchZones();
   }, [tab]);
@@ -113,6 +130,10 @@ export default function ManagerSuite() {
   const fetchAmbulances = () => axios.get(`${API_BASE}/api/ambulances`).then(r => setAmbulances(r.data)).catch(() => {});
   const fetchCases      = () => axios.get(`${API_BASE}/api/cases`).then(r => setCases(r.data)).catch(() => {});
   const fetchZones      = () => axios.get(`${API_BASE}/api/nogozones`).then(r => setZones(r.data)).catch(() => {});
+  const fetchHospitals  = () => axios.get(`${API_BASE}/api/hospitals`).then(r => {
+    setHospitals(r.data);
+    setHospitalNameDrafts(Object.fromEntries(r.data.map(h => [h.id, h.name])));
+  }).catch(() => {});
 
   const handleAddUser = async () => {
     if (!userForm.username || !userForm.password || !userForm.displayName) {
@@ -165,6 +186,32 @@ export default function ManagerSuite() {
       await axios.post(`${API_BASE}/api/ambulances/release-location`, { ambulanceId });
       fetchAmbulances();
     } catch {}
+  };
+
+  const handleSaveHospitalName = async (hospital) => {
+    const name = (hospitalNameDrafts[hospital.id] ?? '').trim();
+    if (!name) { setHospitalError('יש לתת שם לבית החולים'); return; }
+    setHospitalError(''); setHospitalSavingId(hospital.id);
+    try {
+      await axios.post(`${API_BASE}/api/hospitals/update`, { id: hospital.id, name, lat: hospital.lat, lon: hospital.lon });
+      fetchHospitals();
+    } catch { setHospitalError('שגיאה בשמירת השם'); }
+    setHospitalSavingId(null);
+  };
+
+  const handleConfirmHospitalLocation = async () => {
+    if (!hospitalPickPos || !hospitalPickId) return;
+    const hospital = hospitals.find(h => h.id === hospitalPickId);
+    if (!hospital) return;
+    setHospitalPickSaving(true); setHospitalPickError('');
+    try {
+      await axios.post(`${API_BASE}/api/hospitals/update`, {
+        id: hospital.id, name: hospital.name, lat: hospitalPickPos.lat, lon: hospitalPickPos.lon,
+      });
+      setHospitalPickId(null); setHospitalPickPos(null);
+      fetchHospitals();
+    } catch { setHospitalPickError('שגיאה בעדכון המיקום'); }
+    setHospitalPickSaving(false);
   };
 
   const handleDeleteUser = async (id) => {
@@ -353,6 +400,47 @@ export default function ManagerSuite() {
                 )}
               </div>
 
+            </div>
+          )}
+
+          {tab === 'hospitals' && (
+            <div>
+              {hospitalError && <div style={{ color: '#c0392b', fontSize: 13, background: '#fff0ef', padding: '8px 10px', borderRadius: 8, marginBottom: 14 }}>⚠️ {hospitalError}</div>}
+              <div style={{ ...s.card }}>
+                <div style={s.cardTitle}>בתי חולים ({hospitals.length})</div>
+                {hospitals.length === 0 ? (
+                  <div style={{ color: '#bbb', textAlign: 'center', padding: '32px 0', fontSize: 14 }}>
+                    אין בתי חולים במערכת
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {hospitals.map(h => (
+                      <div key={h.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 12px', border: '1px solid #f0f0f0', borderRadius: 10 }}>
+                        <span style={{ fontSize: 20, flexShrink: 0 }}>🏥</span>
+                        <input
+                          value={hospitalNameDrafts[h.id] ?? ''}
+                          onChange={e => setHospitalNameDrafts(d => ({ ...d, [h.id]: e.target.value }))}
+                          style={{ ...s.input, flex: 1, minWidth: 180 }}
+                        />
+                        <code style={{ fontSize: 11, color: '#aaa' }}>{h.lat.toFixed(4)}, {h.lon.toFixed(4)}</code>
+                        <button
+                          onClick={() => handleSaveHospitalName(h)}
+                          disabled={hospitalSavingId === h.id || (hospitalNameDrafts[h.id] ?? '') === h.name}
+                          style={{ ...s.deleteBtn, borderColor: '#a5d6a7', background: '#e8f5e9', color: '#2e7d32', cursor: (hospitalSavingId === h.id || (hospitalNameDrafts[h.id] ?? '') === h.name) ? 'not-allowed' : 'pointer' }}
+                        >
+                          {hospitalSavingId === h.id ? '...' : '💾 שמור שם'}
+                        </button>
+                        <button
+                          onClick={() => { setHospitalPickId(h.id); setHospitalPickPos(null); setHospitalPickError(''); }}
+                          style={{ ...s.deleteBtn, borderColor: '#90caf9', background: '#e3f2fd', color: '#1565c0' }}
+                        >
+                          📍 שנה מיקום
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -620,6 +708,58 @@ export default function ManagerSuite() {
               )}
               {locationPickPos && (
                 <Marker position={[locationPickPos.lat, locationPickPos.lon]} icon={pickedPinIcon} />
+              )}
+            </MapContainer>
+          </div>
+        </div>
+      )}
+
+      {hospitalPickId && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: '#1a1a2e', color: 'white', padding: '12px 16px', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, flexShrink: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
+              🏥 בחר מיקום — {hospitals.find(h => h.id === hospitalPickId)?.name || hospitalPickId}
+            </div>
+            {hospitalPickPos
+              ? <div style={{ fontSize: 12, color: '#aaa' }}>{hospitalPickPos.lat.toFixed(5)}, {hospitalPickPos.lon.toFixed(5)}</div>
+              : <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>לחץ על המפה לבחירת מיקום</div>
+            }
+            <div style={{ marginRight: 'auto', display: 'flex', gap: 8 }}>
+              <button
+                onClick={handleConfirmHospitalLocation}
+                disabled={!hospitalPickPos || hospitalPickSaving}
+                style={{ padding: '8px 20px', border: 'none', borderRadius: 8, background: hospitalPickPos ? '#34c759' : '#444', color: 'white', fontWeight: 700, fontSize: 14, cursor: hospitalPickPos && !hospitalPickSaving ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
+              >
+                {hospitalPickSaving ? '...' : '✓ אשר מיקום'}
+              </button>
+              <button
+                onClick={() => { setHospitalPickId(null); setHospitalPickPos(null); setHospitalPickError(''); }}
+                style={{ padding: '8px 16px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, background: 'transparent', color: 'white', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                ✕ ביטול
+              </button>
+            </div>
+          </div>
+
+          {hospitalPickError && (
+            <div style={{ background: '#fff0ef', color: '#c0392b', padding: '8px 16px', fontSize: 13, flexShrink: 0 }}>
+              ⚠️ {hospitalPickError}
+            </div>
+          )}
+
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <MapContainer center={MAP_CENTER} zoom={13} style={{ height: '100%', width: '100%', cursor: 'crosshair' }} attributionControl={false}>
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+              <LocationPicker onPick={setHospitalPickPos} />
+              {hospitals.map(h =>
+                h.lat && h.lon
+                  ? <Marker key={h.id} position={[h.lat, h.lon]} icon={makeHospitalIcon(h.id === hospitalPickId)}>
+                      <Popup><b>{h.name}</b></Popup>
+                    </Marker>
+                  : null
+              )}
+              {hospitalPickPos && (
+                <Marker position={[hospitalPickPos.lat, hospitalPickPos.lon]} icon={pickedPinIcon} />
               )}
             </MapContainer>
           </div>

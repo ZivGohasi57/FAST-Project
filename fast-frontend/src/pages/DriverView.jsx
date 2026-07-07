@@ -321,6 +321,7 @@ export default function DriverView() {
   const [hospitalLoading,  setHospitalLoading]  = useState(false);
   const [hospitalError,    setHospitalError]    = useState(null);
   const [noEvacConfirm,    setNoEvacConfirm]    = useState(false);
+  const [finishEvacConfirm, setFinishEvacConfirm] = useState(false);
   const [noEvacSaving,     setNoEvacSaving]     = useState(false);
   const [driverStatus,     setDriverStatus]     = useState('available');
   const [statusSaving,     setStatusSaving]     = useState(false);
@@ -345,6 +346,10 @@ export default function DriverView() {
 
   useEffect(() => {
     axios.get(`${API_BASE}/api/signals`).then(res => setTrafficSignals(res.data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    axios.get(`${API_BASE}/api/hospitals`).then(res => setHospitals(res.data ?? [])).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -561,10 +566,13 @@ export default function DriverView() {
     } catch { setHospitalError('לא ניתן לבחור בית חולים.'); }
   };
 
-  const handleNoEvacuation = async () => {
+  const handleCompleteCase = async () => {
     if (!activeCase) return;
     setNoEvacSaving(true);
-    try { await axios.post(`${API_BASE}/api/cases/complete`, { caseId: activeCase.id }); setNoEvacConfirm(false); } catch {}
+    try {
+      await axios.post(`${API_BASE}/api/cases/complete`, { caseId: activeCase.id });
+      setNoEvacConfirm(false); setFinishEvacConfirm(false);
+    } catch {}
     setNoEvacSaving(false);
   };
 
@@ -583,6 +591,7 @@ export default function DriverView() {
           onUserPan={() => { setIsFollowing(false); setInOverview(false); }}
           recenterCount={recenterCount}
           overviewCount={overviewCount}
+          hospitals={hospitals}
         />
 
         {instructions.length > 0 && <InstructionBanner instructions={instructions} isEmergency={isEmergency} />}
@@ -698,8 +707,11 @@ export default function DriverView() {
                 ✓ הגעתי לאירוע
               </button>
             ) : activeCase.hospitalName ? (
-              <div style={{ width: '100%', minHeight: 34, padding: '6px 10px', background: '#fff0ef', border: '1.5px solid #ff3b30', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 700, fontSize: 12, color: '#ff3b30', textAlign: 'center' }}>
-                🏥 בדרך ל: {activeCase.hospitalName}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 11, color: '#999', textAlign: 'center' }}>🏥 בדרך ל: {activeCase.hospitalName}</div>
+                <button onClick={() => setFinishEvacConfirm(true)} style={{ width: '100%', height: 40, background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'white', fontFamily: 'inherit' }}>
+                  ✓ סיום פינוי
+                </button>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: 6 }}>
@@ -843,8 +855,24 @@ export default function DriverView() {
             <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>אין צורך בפינוי — הקריאה תיסגר והאמבולנס יהפוך לזמין. להמשיך?</div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setNoEvacConfirm(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>ביטול</button>
-              <button onClick={handleNoEvacuation} disabled={noEvacSaving} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 14, cursor: noEvacSaving ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>
+              <button onClick={handleCompleteCase} disabled={noEvacSaving} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 14, cursor: noEvacSaving ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>
                 {noEvacSaving ? '...' : 'כן, סגור'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {finishEvacConfirm && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'white', borderRadius: 22, padding: '28px 26px 22px', maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}>
+            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>🏥</div>
+            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>סיום פינוי</div>
+            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>המטופל הועבר בהצלחה לבית החולים? הקריאה תיסגר והאמבולנס יהפוך לזמין.</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setFinishEvacConfirm(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>ביטול</button>
+              <button onClick={handleCompleteCase} disabled={noEvacSaving} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 14, cursor: noEvacSaving ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>
+                {noEvacSaving ? '...' : 'כן, סיום'}
               </button>
             </div>
           </div>
