@@ -23,6 +23,23 @@ const SIGN_ROTATION = {
 };
 
 const fmtDist = (m) => m >= 1000 ? `${(m / 1000).toFixed(1)} ק"מ` : `${Math.round(m)} מ'`;
+const distMeters = (a, b) => {
+  const R = 6371000;
+  const toRad = (d) => d * Math.PI / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+};
+const computeBearing = (a, b) => {
+  const toRad = (d) => d * Math.PI / 180;
+  const toDeg = (r) => r * 180 / Math.PI;
+  const phi1 = toRad(a.lat), phi2 = toRad(b.lat);
+  const dLon = toRad(b.lon - a.lon);
+  const y = Math.sin(dLon) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+};
 const fmtTime = (sec) => {
   if (sec < 60) return `${sec}ש'`;
   const m = Math.floor(sec / 60);
@@ -336,12 +353,16 @@ export default function DriverView() {
   const [startPos,  setStartPos]  = useState(null);
   const [endPos,    setEndPos]    = useState(null);
   const [locationLocked, setLocationLocked] = useState(false);
+  const [heading,   setHeading]   = useState(null);
 
   const prevCaseIdRef       = useRef(null);
   const prevSceneRef        = useRef(null);
   const locationLockedRef   = useRef(false);
   const prevActiveCaseIdRef = useRef(null);
   const firstGpsRef         = useRef(true);
+  const lastPostedPosRef    = useRef(null);
+  const lastFixPosRef       = useRef(null);
+  const endPosRef           = useRef(null);
   const [newCaseAlert,  setNewCaseAlert]  = useState(false);
   const [cancelConfirm, setCancelConfirm] = useState(false);
 
@@ -408,13 +429,28 @@ export default function DriverView() {
       if (locationLockedRef.current) return;
       if (!navigator.geolocation) return;
       navigator.geolocation.getCurrentPosition(({ coords }) => {
+        if (coords.accuracy && coords.accuracy > 200) return;
         const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
         setStartPos(pos);
         setStartText('📍 מיקום נוכחי');
         firstGpsRef.current = false;
         setRecenterCount(c => c + 1);
-        if (ambId) axios.post(`${API_BASE}/api/ambulances/location`, { ambulanceId: ambId, lat: coords.latitude, lon: coords.longitude }).catch(() => {});
-      }, () => {});
+
+        let newHeading = (typeof coords.heading === 'number' && !Number.isNaN(coords.heading)) ? coords.heading : null;
+        if (newHeading === null && lastFixPosRef.current) {
+          const movedForBearing = distMeters(lastFixPosRef.current, pos);
+          if (movedForBearing > 8) newHeading = computeBearing(lastFixPosRef.current, pos);
+        }
+        if (newHeading !== null) setHeading(newHeading);
+        lastFixPosRef.current = pos;
+
+        const last  = lastPostedPosRef.current;
+        const moved = !last || distMeters(last, pos) > 15;
+        if (ambId && moved) {
+          axios.post(`${API_BASE}/api/ambulances/location`, { ambulanceId: ambId, lat: coords.latitude, lon: coords.longitude }).catch(() => {});
+          lastPostedPosRef.current = pos;
+        }
+      }, () => {}, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
     };
     update();
     const iv = setInterval(update, 5000);
@@ -482,6 +518,10 @@ export default function DriverView() {
   }, [newCaseAlert]);
 
   useEffect(() => {
+    endPosRef.current = endPos;
+  }, [endPos]);
+
+  useEffect(() => {
     if (startPos && endPos) fetchRoute(isEmergency, startPos, endPos);
   }, [startPos, endPos]);
 
@@ -492,7 +532,7 @@ export default function DriverView() {
       const { data } = await axios.get(`${API_BASE}/api/route`, {
         params: { startLat: start.lat, startLon: start.lon, endLat: end.lat, endLon: end.lon, isEmergency: emergency },
       });
-      if (data?.path) {
+      if (data?.path && endPosRef.current === end) {
         setRouteCoords(data.path.map(p => [p.lat, p.lon]));
         setRouteInfo({ distance: data.totalDistanceMeters, time: data.estimatedTimeSeconds });
         setInstructions(data.instructions ?? []);
@@ -606,6 +646,7 @@ export default function DriverView() {
           recenterCount={recenterCount}
           overviewCount={overviewCount}
           hospitals={hospitals}
+          heading={heading}
         />
 
         {instructions.length > 0 && <InstructionBanner instructions={instructions} isEmergency={isEmergency} />}

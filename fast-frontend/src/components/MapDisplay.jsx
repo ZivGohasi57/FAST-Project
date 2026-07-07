@@ -1,7 +1,8 @@
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, useMap, useMapEvents } from 'react-leaflet';
 import { useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
+import L from '../lib/leafletGlobal.js';
+import 'leaflet-rotate';
 
 const ambulanceIcon = L.divIcon({
   className: '',
@@ -102,6 +103,15 @@ function AutoFit({ startPos, recenterCount, overviewCount, routeCoordinates }) {
   return null;
 }
 
+function MapRotator({ heading }) {
+  const map = useMap();
+  useEffect(() => {
+    if (typeof heading !== 'number' || Number.isNaN(heading)) return;
+    if (typeof map.setBearing === 'function') map.setBearing(heading);
+  }, [heading, map]);
+  return null;
+}
+
 const SIGNAL_MIN_ZOOM = 15;
 
 function SignalLayer({ signals }) {
@@ -123,7 +133,7 @@ function SignalLayer({ signals }) {
   ));
 }
 
-function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount, overviewCount, hospitals }) {
+function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSignals, trafficSegments, isFollowing, onUserPan, recenterCount, overviewCount, hospitals, heading }) {
   const center    = startPos ?? [32.1668139, 34.9201287];
   const routeColor = isEmergency ? '#ff4500' : '#007aff';
 
@@ -134,6 +144,10 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
       style={{ height:'100%', width:'100%' }}
       zoomControl={false}
       attributionControl={false}
+      rotate={true}
+      rotateControl={false}
+      touchRotate={false}
+      shiftKeyRotate={false}
     >
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
@@ -142,6 +156,7 @@ function MapDisplay({ routeCoordinates, startPos, endPos, isEmergency, trafficSi
 
       <PanDetector onUserPan={onUserPan} />
       <AutoFit startPos={startPos} recenterCount={recenterCount} overviewCount={overviewCount} routeCoordinates={routeCoordinates} />
+      <MapRotator heading={heading} />
       <TrafficLayer segments={trafficSegments} />
       <SignalLayer signals={trafficSignals} />
 

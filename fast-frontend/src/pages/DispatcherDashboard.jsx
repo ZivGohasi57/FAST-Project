@@ -53,6 +53,7 @@ function MapController({ points, fitAllTrigger, trackedAmbulanceId, ambulances, 
     const amb = ambulances.find(a => a.id === trackedAmbulanceId);
     if (!amb) return;
     programmaticRef.current = true;
+    map.closePopup();
     map.setView([amb.lat, amb.lon], Math.max(map.getZoom(), 15), { animate: true });
     setTimeout(() => { programmaticRef.current = false; }, 500);
   }, [trackedAmbulanceId, ambulances, map]);
@@ -155,9 +156,9 @@ export default function DispatcherDashboard() {
             const fresh = active.find(c => c.id === prev.id);
             if (fresh) return fresh;
             const finished = r.data.find(c => c.id === prev.id);
-            if (finished?.status === 'completed' && prev.hospitalName) {
-              setEvacCompleteNotice({ hospitalName: prev.hospitalName, address: prev.address });
-              setAssignedRoute([]);
+            if (finished?.status === 'completed') {
+              if (prev.hospitalName) setEvacCompleteNotice({ hospitalName: prev.hospitalName, address: prev.address });
+              resetCaseAuxState();
             }
             return null;
           });
@@ -313,14 +314,23 @@ export default function DispatcherDashboard() {
 
   const toggleTrackAmbulance = (id) => setTrackedAmbulanceId(prev => prev === id ? null : id);
 
+  const resetCaseAuxState = () => {
+    setAssignedRoute([]); setEtaResults([]);
+    setEventPos(null); setAddress('');
+    setForm({ patientDetails: '', description: '', urgency: 'emergency', notes: '' });
+    if (isMobile) setShowMap(false);
+  };
+
+  const resetCaseView = () => {
+    setActiveCase(null);
+    resetCaseAuxState();
+  };
+
   const handleComplete = async () => {
     if (!activeCase) return;
     try {
       await axios.post(`${API_BASE}/api/cases/complete`, { caseId: activeCase.id });
-      setActiveCase(null); setAssignedRoute([]); setEtaResults([]);
-      setEventPos(null); setAddress('');
-      setForm({ patientDetails: '', description: '', urgency: 'emergency', notes: '' });
-      if (isMobile) setShowMap(false);
+      resetCaseView();
     } catch { setError('שגיאה בסיום קריאה'); }
   };
 
@@ -328,12 +338,7 @@ export default function DispatcherDashboard() {
     try {
       await axios.post(`${API_BASE}/api/cases/cancel`, { caseId });
       setMissions(prev => prev.filter(m => m.id !== caseId));
-      if (activeCase?.id === caseId) {
-        setActiveCase(null); setAssignedRoute([]); setEtaResults([]);
-        setEventPos(null); setAddress('');
-        setForm({ patientDetails: '', description: '', urgency: 'emergency', notes: '' });
-        if (isMobile) setShowMap(false);
-      }
+      if (activeCase?.id === caseId) resetCaseView();
     } catch { setError('שגיאה בביטול קריאה'); }
   };
 
