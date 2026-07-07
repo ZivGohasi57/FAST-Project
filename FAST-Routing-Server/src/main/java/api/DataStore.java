@@ -35,7 +35,8 @@ public class DataStore {
         "cases",      15_000L,
         "ambulances", 10_000L,
         "users",      60_000L,
-        "nogozones",  60_000L
+        "nogozones",  60_000L,
+        "hospitals",  300_000L
     );
 
     private static final DataStore INSTANCE = new DataStore();
@@ -56,6 +57,8 @@ public class DataStore {
                     .fromStream(new ByteArrayInputStream(sa.getBytes(StandardCharsets.UTF_8)))
                     .createScoped(SCOPES);
             seedIfEmpty();
+            seedHospitalsIfEmpty();
+            seedSchoolZonesIfEmpty();
         } catch (IOException e) {
             throw new RuntimeException("Firebase credentials init failed: " + e.getMessage(), e);
         }
@@ -67,6 +70,7 @@ public class DataStore {
             return credentials.getAccessToken().getTokenValue();
         } catch (IOException e) { throw new RuntimeException("Firebase token refresh failed", e); }
     }
+
 
     private String httpGet(String url) {
         try {
@@ -213,6 +217,108 @@ public class DataStore {
         Map<String, Object> seq = new HashMap<>();
         seq.put("caseSeq", 1L); seq.put("userSeq", 10L); seq.put("zoneSeq", 1L);
         putDoc("counters", "sequences", seq);
+    }
+
+    private static final double HOD_HASHARON_MIN_LAT = 32.135;
+    private static final double HOD_HASHARON_MAX_LAT  = 32.178;
+    private static final double HOD_HASHARON_MIN_LON  = 34.865;
+    private static final double HOD_HASHARON_MAX_LON  = 34.930;
+
+    private void seedHospitalsIfEmpty() {
+        if (!listCol("hospitals").isEmpty()) return;
+
+        String[] names = { "בית חולים הוד השרון - מרכז", "בית חולים הוד השרון - צפון", "בית חולים הוד השרון - דרום" };
+        Random rnd = new Random();
+        for (String name : names) {
+            double lat = HOD_HASHARON_MIN_LAT + rnd.nextDouble() * (HOD_HASHARON_MAX_LAT - HOD_HASHARON_MIN_LAT);
+            double lon = HOD_HASHARON_MIN_LON + rnd.nextDouble() * (HOD_HASHARON_MAX_LON - HOD_HASHARON_MIN_LON);
+            addHospital(new Hospital(null, name, lat, lon));
+        }
+    }
+
+    private static final String[][] SCHOOL_SEED_DATA = {
+        { "בי\"ס יסודי שילה",                 "32.1604463", "34.9041596" },
+        { "לפיד",                              "32.1508272", "34.8926629" },
+        { "חט\"ב הראשונים",                    "32.1568907", "34.9010301" },
+        { "בי\"ס יסודי רעות",                  "32.1594156", "34.8985732" },
+        { "בי\"ס תיכון מוסינזון",              "32.1557099", "34.8988628" },
+        { "בי\"ס יסודי ממלכתי א'",             "32.1581830", "34.8956857" },
+        { "בית ספר יצחק רבין",                 "32.1408266", "34.8896559" },
+        { "בית ספר בגין",                      "32.1670505", "34.8982704" },
+        { "בית ספר תמר",                       "32.1570271", "34.9133882" },
+        { "בית ספר רמות",                      "32.1587922", "34.9169164" },
+        { "חט\"צ המגן",                        "32.1564514", "34.9073732" },
+        { "תיכון ע\"ש אילן רמון",              "32.1614238", "34.9074359" },
+        { "חטיבת ביניים עתידים",              "32.1610855", "34.9083774" },
+        { "בית ספר יסודי ע\"ש יגאל אלון",      "32.1610978", "34.8907346" },
+        { "חטיבת ביניים השקמים",              "32.1609001", "34.8858979" },
+        { "תיכון הדרים",                       "32.1443994", "34.8923640" },
+        { "ביה\"ס הדמוקרטי",                   "32.1545306", "34.8838719" },
+    };
+
+    private static final double SCHOOL_BUFFER_METERS = 120.0;
+
+    private void seedSchoolZonesIfEmpty() {
+        Map<String, Object> counters = getDoc("counters", "sequences");
+        if (counters != null && Boolean.TRUE.equals(counters.get("schoolZonesSeeded"))) return;
+
+        double latBuffer = SCHOOL_BUFFER_METERS / 111_320.0;
+        double lonBuffer = SCHOOL_BUFFER_METERS / (111_320.0 * Math.cos(Math.toRadians(32.15)));
+
+        for (String[] school : SCHOOL_SEED_DATA) {
+            double lat = Double.parseDouble(school[1]);
+            double lon = Double.parseDouble(school[2]);
+            NoGoZone z = new NoGoZone();
+            z.setName("🏫 " + school[0]);
+            z.setType("daily");
+            z.setDailyStart("07:00");
+            z.setDailyEnd("14:30");
+            z.setMinLat(lat - latBuffer); z.setMaxLat(lat + latBuffer);
+            z.setMinLon(lon - lonBuffer); z.setMaxLon(lon + lonBuffer);
+            addNoGoZone(z);
+        }
+
+        if (counters == null) counters = new HashMap<>();
+        counters.put("schoolZonesSeeded", true);
+        counters.remove("id");
+        putDoc("counters", "sequences", counters);
+    }
+
+    public Hospital addHospital(Hospital h) {
+        h.setId("hosp-" + nextSeq("hospitalSeq"));
+        putDoc("hospitals", h.getId(), hospitalToMap(h));
+        return h;
+    }
+
+    public Collection<Hospital> allHospitals() {
+        return listCol("hospitals").stream().map(this::toHospital).collect(Collectors.toList());
+    }
+
+    public Hospital getHospital(String id) {
+        Map<String, Object> d = getDoc("hospitals", id); return d != null ? toHospital(d) : null;
+    }
+
+    public void selectHospitalForCase(String caseId, String hospitalId) {
+        Hospital h = getHospital(hospitalId);
+        if (h == null) return;
+        Map<String, Object> doc = getDoc("cases", caseId);
+        if (doc == null) return;
+        doc.put("hospitalId", h.getId());
+        doc.put("hospitalName", h.getName());
+        doc.put("hospitalLat", h.getLat());
+        doc.put("hospitalLon", h.getLon());
+        doc.remove("id");
+        putDoc("cases", caseId, doc);
+    }
+
+    private Map<String, Object> hospitalToMap(Hospital h) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("name", h.getName()); m.put("lat", h.getLat()); m.put("lon", h.getLon());
+        return m;
+    }
+
+    private Hospital toHospital(Map<String, Object> m) {
+        return new Hospital(str(m,"id"), str(m,"name"), dbl(m,"lat"), dbl(m,"lon"));
     }
 
     public void putUser(User u)    { putDoc("users", u.getId(), userToMap(u)); }
@@ -520,6 +626,10 @@ public class DataStore {
         m.put("createdAt",      c.getCreatedAt());      m.put("arrivalTime",     c.getArrivalTime());
         m.put("assignedAmbulanceId", c.getAssignedAmbulanceId());
         m.put("assignedDriverName",  c.getAssignedDriverName());
+        m.put("hospitalId",          c.getHospitalId());
+        m.put("hospitalName",        c.getHospitalName());
+        m.put("hospitalLat",         c.getHospitalLat());
+        m.put("hospitalLon",         c.getHospitalLon());
         return m;
     }
 
@@ -532,6 +642,10 @@ public class DataStore {
         c.setStatus(str(m,"status","pending"));
         c.setAssignedAmbulanceId((String) m.get("assignedAmbulanceId"));
         c.setAssignedDriverName(str(m,"assignedDriverName"));
+        c.setHospitalId((String) m.get("hospitalId"));
+        c.setHospitalName((String) m.get("hospitalName"));
+        c.setHospitalLat(dbl(m,"hospitalLat"));
+        c.setHospitalLon(dbl(m,"hospitalLon"));
         Object ts = m.get("createdAt");
         c.setCreatedAt(ts instanceof Number ? ((Number) ts).longValue() : 0L);
         Object at = m.get("arrivalTime");

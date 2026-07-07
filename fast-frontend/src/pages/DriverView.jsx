@@ -260,6 +260,46 @@ function SearchModal({ startText, setStartText, endText, setEndText, onSelectSta
   );
 }
 
+function HospitalPickerModal({ hospitals, loading, error, onSelect, onClose }) {
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 720, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={onClose}>
+      <div style={{ background: 'white', borderRadius: 22, padding: '24px 20px', maxWidth: 380, width: '100%', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ textAlign: 'center', fontSize: 40, lineHeight: 1, marginBottom: 10 }}>🏥</div>
+        <div style={{ textAlign: 'center', fontSize: 18, fontWeight: 800, color: '#1a1a2e', marginBottom: 4 }}>בחירת בית חולים</div>
+        <div style={{ textAlign: 'center', color: '#888', fontSize: 13, marginBottom: 18 }}>לפי בקשת המטופל, ניתן לבחור כל בית חולים</div>
+
+        {loading && <div style={{ textAlign: 'center', color: '#aaa', padding: 20 }}>⏳ טוען...</div>}
+        {error && <div style={{ textAlign: 'center', color: '#ff3b30', padding: 10, fontSize: 13 }}>⚠️ {error}</div>}
+
+        {!loading && hospitals.map((h, i) => (
+          <button key={h.id} onClick={() => onSelect(h)} style={{
+            width: '100%', textAlign: 'right', marginBottom: 10, padding: '12px 14px',
+            background: i === 0 ? '#fff0ef' : '#f5f7fa',
+            border: `1.5px solid ${i === 0 ? '#ff3b30' : '#e8eaed'}`,
+            borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10,
+          }}>
+            <div style={{ minWidth: 0 }}>
+              {i === 0 && <div style={{ fontSize: 11, fontWeight: 700, color: '#ff3b30', marginBottom: 2 }}>מומלץ — הכי קרוב</div>}
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.name}</div>
+            </div>
+            <div style={{ flexShrink: 0, textAlign: 'left' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#007aff' }}>{fmtTime(h.etaSeconds)}</div>
+              <div style={{ fontSize: 11, color: '#999' }}>{fmtDist(h.distanceMeters)}</div>
+            </div>
+          </button>
+        ))}
+
+        <button onClick={onClose} style={{ width: '100%', padding: '12px', marginTop: 4, background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555', fontFamily: 'inherit' }}>
+          ביטול
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function DriverView() {
   const [isEmergency,    setIsEmergency]    = useState(false);
   const [isFollowing,    setIsFollowing]    = useState(true);
@@ -276,6 +316,12 @@ export default function DriverView() {
   const [error,          setError]          = useState(null);
   const [activeCase,     setActiveCase]     = useState(null);
   const [arrivedAtScene, setArrivedAtScene] = useState(false);
+  const [hospitals,        setHospitals]        = useState([]);
+  const [hospitalPickerOpen, setHospitalPickerOpen] = useState(false);
+  const [hospitalLoading,  setHospitalLoading]  = useState(false);
+  const [hospitalError,    setHospitalError]    = useState(null);
+  const [noEvacConfirm,    setNoEvacConfirm]    = useState(false);
+  const [noEvacSaving,     setNoEvacSaving]     = useState(false);
   const [driverStatus,     setDriverStatus]     = useState('available');
   const [statusSaving,     setStatusSaving]     = useState(false);
   const [disconnectOpen,   setDisconnectOpen]   = useState(false);
@@ -359,15 +405,13 @@ export default function DriverView() {
         const pos = { lat: coords.latitude, lon: coords.longitude, label: 'מיקום נוכחי' };
         setStartPos(pos);
         setStartText('📍 מיקום נוכחי');
-        if (firstGpsRef.current) {
-          firstGpsRef.current = false;
-          setRecenterCount(c => c + 1);
-        }
+        firstGpsRef.current = false;
+        setRecenterCount(c => c + 1);
         if (ambId) axios.post(`${API_BASE}/api/ambulances/location`, { ambulanceId: ambId, lat: coords.latitude, lon: coords.longitude }).catch(() => {});
       }, () => {});
     };
     update();
-    const iv = setInterval(update, 30000);
+    const iv = setInterval(update, 5000);
     return () => clearInterval(iv);
   }, []);
 
@@ -396,11 +440,17 @@ export default function DriverView() {
     if (!activeCase) { prevCaseIdRef.current = null; return; }
     if (activeCase.id === prevCaseIdRef.current) return;
     prevCaseIdRef.current = activeCase.id;
-    setArrivedAtScene(false);
-    setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
-    setEndText(activeCase.address);
+    const alreadyArrived = !!activeCase.arrivalTime;
+    setArrivedAtScene(alreadyArrived);
+    if (activeCase.hospitalName) {
+      setEndPos({ lat: activeCase.hospitalLat, lon: activeCase.hospitalLon, label: activeCase.hospitalName });
+      setEndText(activeCase.hospitalName);
+    } else {
+      setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
+      setEndText(activeCase.address);
+      setNewCaseAlert(!alreadyArrived);
+    }
     setIsEmergency(activeCase.urgency === 'emergency');
-    setNewCaseAlert(true);
     setSearchOpen(false);
     setIsFollowing(true);
     setRecenterCount(c => c + 1);
@@ -488,6 +538,36 @@ export default function DriverView() {
     try { await axios.post(`${API_BASE}/api/cases/arrive`, { caseId: activeCase.id }); setArrivedAtScene(true); } catch {}
   };
 
+  const handleOpenHospitalPicker = async () => {
+    if (!activeCase) return;
+    setHospitalPickerOpen(true); setHospitalLoading(true); setHospitalError(null);
+    try {
+      const { data } = await axios.get(`${API_BASE}/api/hospitals`, {
+        params: { lat: activeCase.lat, lon: activeCase.lon },
+      });
+      setHospitals(data ?? []);
+    } catch { setHospitalError('לא ניתן לטעון בתי חולים.'); }
+    setHospitalLoading(false);
+  };
+
+  const handleSelectHospital = async (hospital) => {
+    if (!activeCase) return;
+    try {
+      await axios.post(`${API_BASE}/api/cases/select-hospital`, { caseId: activeCase.id, hospitalId: hospital.id });
+      setActiveCase(prev => prev ? { ...prev, hospitalId: hospital.id, hospitalName: hospital.name } : prev);
+      setEndPos({ lat: hospital.lat, lon: hospital.lon, label: hospital.name });
+      setEndText(hospital.name);
+      setHospitalPickerOpen(false);
+    } catch { setHospitalError('לא ניתן לבחור בית חולים.'); }
+  };
+
+  const handleNoEvacuation = async () => {
+    if (!activeCase) return;
+    setNoEvacSaving(true);
+    try { await axios.post(`${API_BASE}/api/cases/complete`, { caseId: activeCase.id }); setNoEvacConfirm(false); } catch {}
+    setNoEvacSaving(false);
+  };
+
   return (
     <div style={{ position: 'relative', height: '100dvh', width: '100vw', overflow: 'hidden', display: 'flex', flexDirection: 'column', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
@@ -503,7 +583,6 @@ export default function DriverView() {
           onUserPan={() => { setIsFollowing(false); setInOverview(false); }}
           recenterCount={recenterCount}
           overviewCount={overviewCount}
-          routeCoordinates={routeCoords}
         />
 
         {instructions.length > 0 && <InstructionBanner instructions={instructions} isEmergency={isEmergency} />}
@@ -599,8 +678,10 @@ export default function DriverView() {
           return (
             <div style={{ margin: '2px 12px 0', padding: '7px 12px', background: isEmergency ? '#fff0ef' : '#f0fff4', border: `1.5px solid ${isEmergency ? '#ff3b30' : '#34c759'}`, borderRadius: 12, direction: 'rtl', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ minWidth: 0, flex: 1, marginLeft: 10 }}>
-                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 1 }}>יעד</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {activeCase.address}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#aaa', marginBottom: 1 }}>{activeCase.hospitalName ? 'פינוי ליעד' : 'יעד'}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {activeCase.hospitalName ? `🏥 ${activeCase.hospitalName}` : `📍 ${activeCase.address}`}
+                </div>
               </div>
               <div style={{ textAlign: 'center', flexShrink: 0, borderRight: '1px solid #e8e8e8', paddingRight: 12 }}>
                 <div style={{ fontSize: 16, fontWeight: 800, color: isEmergency ? '#ff3b30' : '#007aff', lineHeight: 1 }}>{arrival}</div>
@@ -616,9 +697,18 @@ export default function DriverView() {
               <button onClick={handleArrived} style={{ width: '100%', height: 40, background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: 'white', fontFamily: 'inherit' }}>
                 ✓ הגעתי לאירוע
               </button>
+            ) : activeCase.hospitalName ? (
+              <div style={{ width: '100%', minHeight: 34, padding: '6px 10px', background: '#fff0ef', border: '1.5px solid #ff3b30', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 700, fontSize: 12, color: '#ff3b30', textAlign: 'center' }}>
+                🏥 בדרך ל: {activeCase.hospitalName}
+              </div>
             ) : (
-              <div style={{ width: '100%', height: 34, background: '#e6f9ec', border: '1.5px solid #34c759', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: 12, color: '#34c759' }}>
-                ✓ הגעה נרשמה
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button onClick={handleOpenHospitalPicker} style={{ flex: 1, height: 40, background: 'linear-gradient(135deg,#ff3b30,#ff6b35)', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: 'white', fontFamily: 'inherit' }}>
+                  🏥 כן, נדרש פינוי
+                </button>
+                <button onClick={() => setNoEvacConfirm(true)} style={{ flex: 1, height: 40, background: '#f5f7fa', border: '1.5px solid #34c759', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 12, color: '#34c759', fontFamily: 'inherit' }}>
+                  ✓ לא, סגור קריאה
+                </button>
               </div>
             )}
           </div>
@@ -743,6 +833,30 @@ export default function DriverView() {
             </div>
           </div>
         </div>
+      )}
+
+      {noEvacConfirm && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(3px)', zIndex: 710, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <div style={{ background: 'white', borderRadius: 22, padding: '28px 26px 22px', maxWidth: 320, width: '100%', boxShadow: '0 12px 48px rgba(0,0,0,0.35)', direction: 'rtl', animation: 'slideUp 0.3s ease' }}>
+            <div style={{ textAlign: 'center', fontSize: 48, lineHeight: 1, marginBottom: 14 }}>✓</div>
+            <div style={{ textAlign: 'center', fontSize: 19, fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>סגירת קריאה</div>
+            <div style={{ textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 24 }}>אין צורך בפינוי — הקריאה תיסגר והאמבולנס יהפוך לזמין. להמשיך?</div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setNoEvacConfirm(false)} style={{ flex: 1, padding: '13px', background: '#f5f7fa', border: '1px solid #e8eaed', borderRadius: 14, cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>ביטול</button>
+              <button onClick={handleNoEvacuation} disabled={noEvacSaving} style={{ flex: 1, padding: '13px', background: 'linear-gradient(135deg,#34c759,#28a745)', border: 'none', borderRadius: 14, cursor: noEvacSaving ? 'wait' : 'pointer', fontWeight: 700, fontSize: 14, color: 'white' }}>
+                {noEvacSaving ? '...' : 'כן, סגור'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hospitalPickerOpen && (
+        <HospitalPickerModal
+          hospitals={hospitals} loading={hospitalLoading} error={hospitalError}
+          onSelect={handleSelectHospital}
+          onClose={() => setHospitalPickerOpen(false)}
+        />
       )}
 
       {searchOpen && (

@@ -14,6 +14,10 @@ public class CaseRecord {
     private String status;
     private long   createdAt;
     private long   arrivalTime;
+    private String hospitalId;
+    private String hospitalName;
+    private double hospitalLat;
+    private double hospitalLon;
 
     public CaseRecord() {}
     public String getId()                       { return id; }
@@ -42,4 +46,12 @@ public class CaseRecord {
     public void   setCreatedAt(long v)          { createdAt = v; }
     public long   getArrivalTime()              { return arrivalTime; }
     public void   setArrivalTime(long v)        { arrivalTime = v; }
+    public String getHospitalId()               { return hospitalId; }
+    public void   setHospitalId(String v)       { hospitalId = v; }
+    public String getHospitalName()             { return hospitalName; }
+    public void   setHospitalName(String v)     { hospitalName = v; }
+    public double getHospitalLat()              { return hospitalLat; }
+    public void   setHospitalLat(double v)      { hospitalLat = v; }
+    public double getHospitalLon()              { return hospitalLon; }
+    public void   setHospitalLon(double v)      { hospitalLon = v; }
 }

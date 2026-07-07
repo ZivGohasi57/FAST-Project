@@ -36,6 +36,7 @@ public class RoutingController {
         server.createContext("/api/eta",        new EtaHandler());
         server.createContext("/api/users",      new UserHandler());
         server.createContext("/api/nogozones",  new NoGoZoneHandler());
+        server.createContext("/api/hospitals",  new HospitalHandler());
         server.setExecutor(null);
         server.start();
         System.out.println("FAST API Server is running on port " + port);
@@ -330,6 +331,12 @@ public class RoutingController {
                 DS.markArrival(json.get("caseId").getAsString());
                 sendStatus(ex, 200);
 
+            } else if ("POST".equals(method) && "/select-hospital".equals(suffix)) {
+                JsonObject json = body(ex);
+                DS.selectHospitalForCase(json.get("caseId").getAsString(),
+                                         json.get("hospitalId").getAsString());
+                sendStatus(ex, 200);
+
             } else {
                 sendStatus(ex, 404);
             }
@@ -443,6 +450,42 @@ public class RoutingController {
             } else {
                 sendStatus(ex, 405);
             }
+        }
+    }
+
+    static class HospitalHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange ex) throws IOException {
+            if (handleOptions(ex)) return;
+            if (!"GET".equals(ex.getRequestMethod())) { sendStatus(ex, 405); return; }
+
+            Map<String, String> params = queryMap(ex.getRequestURI().getQuery());
+            List<Hospital> hospitals = new ArrayList<>(DS.allHospitals());
+
+            if (!params.containsKey("lat") || !params.containsKey("lon")) {
+                sendJson(ex, hospitals);
+                return;
+            }
+
+            double lat = Double.parseDouble(params.get("lat"));
+            double lon = Double.parseDouble(params.get("lon"));
+
+            List<Map<String, Object>> results = new ArrayList<>();
+            for (Hospital h : hospitals) {
+                RouteRequest req = new RouteRequest(lat, lon, h.getLat(), h.getLon(), false);
+                RouteResponse resp = new FastRoutingEngine(new RoutineRoutingStrategy(ENGINE_CLIENT)).getOptimalRoute(req);
+
+                Map<String, Object> row = new LinkedHashMap<>();
+                row.put("id",             h.getId());
+                row.put("name",           h.getName());
+                row.put("lat",            h.getLat());
+                row.put("lon",            h.getLon());
+                row.put("distanceMeters", resp.getTotalDistanceMeters());
+                row.put("etaSeconds",     resp.getEstimatedTimeSeconds());
+                results.add(row);
+            }
+            results.sort(Comparator.comparingLong(r -> ((Number) r.get("etaSeconds")).longValue()));
+            sendJson(ex, results);
         }
     }
 
