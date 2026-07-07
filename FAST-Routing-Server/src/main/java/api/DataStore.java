@@ -39,6 +39,33 @@ public class DataStore {
         "hospitals",  300_000L
     );
 
+    private static final double HOD_HASHARON_MIN_LAT = 32.135;
+    private static final double HOD_HASHARON_MAX_LAT = 32.178;
+    private static final double HOD_HASHARON_MIN_LON = 34.865;
+    private static final double HOD_HASHARON_MAX_LON = 34.930;
+
+    private static final double SCHOOL_BUFFER_METERS = 120.0;
+
+    private static final String[][] SCHOOL_SEED_DATA = {
+        { "בי\"ס יסודי שילה",                 "32.1604463", "34.9041596" },
+        { "לפיד",                              "32.1508272", "34.8926629" },
+        { "חט\"ב הראשונים",                    "32.1568907", "34.9010301" },
+        { "בי\"ס יסודי רעות",                  "32.1594156", "34.8985732" },
+        { "בי\"ס תיכון מוסינזון",              "32.1557099", "34.8988628" },
+        { "בי\"ס יסודי ממלכתי א'",             "32.1581830", "34.8956857" },
+        { "בית ספר יצחק רבין",                 "32.1408266", "34.8896559" },
+        { "בית ספר בגין",                      "32.1670505", "34.8982704" },
+        { "בית ספר תמר",                       "32.1570271", "34.9133882" },
+        { "בית ספר רמות",                      "32.1587922", "34.9169164" },
+        { "חט\"צ המגן",                        "32.1564514", "34.9073732" },
+        { "תיכון ע\"ש אילן רמון",              "32.1614238", "34.9074359" },
+        { "חטיבת ביניים עתידים",              "32.1610855", "34.9083774" },
+        { "בית ספר יסודי ע\"ש יגאל אלון",      "32.1610978", "34.8907346" },
+        { "חטיבת ביניים השקמים",              "32.1609001", "34.8858979" },
+        { "תיכון הדרים",                       "32.1443994", "34.8923640" },
+        { "ביה\"ס הדמוקרטי",                   "32.1545306", "34.8838719" },
+    };
+
     private static final DataStore INSTANCE = new DataStore();
     public static DataStore getInstance() { return INSTANCE; }
 
@@ -219,13 +246,11 @@ public class DataStore {
         putDoc("counters", "sequences", seq);
     }
 
-    private static final double HOD_HASHARON_MIN_LAT = 32.135;
-    private static final double HOD_HASHARON_MAX_LAT  = 32.178;
-    private static final double HOD_HASHARON_MIN_LON  = 34.865;
-    private static final double HOD_HASHARON_MAX_LON  = 34.930;
-
     private void seedHospitalsIfEmpty() {
-        if (!listCol("hospitals").isEmpty()) return;
+        List<Map<String, Object>> existing = listCol("hospitals");
+        boolean corrupt = existing.stream().anyMatch(d -> dbl(d, "lat") == 0.0 && dbl(d, "lon") == 0.0);
+        if (!existing.isEmpty() && !corrupt) return;
+        for (Map<String, Object> d : existing) deleteDoc("hospitals", str(d, "id"));
 
         String[] names = { "בית חולים הוד השרון - מרכז", "בית חולים הוד השרון - צפון", "בית חולים הוד השרון - דרום" };
         Random rnd = new Random();
@@ -235,28 +260,6 @@ public class DataStore {
             addHospital(new Hospital(null, name, lat, lon));
         }
     }
-
-    private static final String[][] SCHOOL_SEED_DATA = {
-        { "בי\"ס יסודי שילה",                 "32.1604463", "34.9041596" },
-        { "לפיד",                              "32.1508272", "34.8926629" },
-        { "חט\"ב הראשונים",                    "32.1568907", "34.9010301" },
-        { "בי\"ס יסודי רעות",                  "32.1594156", "34.8985732" },
-        { "בי\"ס תיכון מוסינזון",              "32.1557099", "34.8988628" },
-        { "בי\"ס יסודי ממלכתי א'",             "32.1581830", "34.8956857" },
-        { "בית ספר יצחק רבין",                 "32.1408266", "34.8896559" },
-        { "בית ספר בגין",                      "32.1670505", "34.8982704" },
-        { "בית ספר תמר",                       "32.1570271", "34.9133882" },
-        { "בית ספר רמות",                      "32.1587922", "34.9169164" },
-        { "חט\"צ המגן",                        "32.1564514", "34.9073732" },
-        { "תיכון ע\"ש אילן רמון",              "32.1614238", "34.9074359" },
-        { "חטיבת ביניים עתידים",              "32.1610855", "34.9083774" },
-        { "בית ספר יסודי ע\"ש יגאל אלון",      "32.1610978", "34.8907346" },
-        { "חטיבת ביניים השקמים",              "32.1609001", "34.8858979" },
-        { "תיכון הדרים",                       "32.1443994", "34.8923640" },
-        { "ביה\"ס הדמוקרטי",                   "32.1545306", "34.8838719" },
-    };
-
-    private static final double SCHOOL_BUFFER_METERS = 120.0;
 
     private void seedSchoolZonesIfEmpty() {
         Map<String, Object> counters = getDoc("counters", "sequences");
