@@ -132,13 +132,16 @@ export default function DispatcherDashboard() {
   }, [evacCompleteNotice]);
 
   useEffect(() => {
-    if (!activeCase?.hospitalId || !activeCase?.assignedAmbulanceId) return;
+    if (!activeCase?.assignedAmbulanceId) return;
     const amb = ambulances.find(a => a.id === activeCase.assignedAmbulanceId);
     if (!amb) return;
+    const target = activeCase.hospitalId
+      ? { lat: activeCase.hospitalLat, lon: activeCase.hospitalLon }
+      : { lat: activeCase.lat, lon: activeCase.lon };
     axios.get(`${API_BASE}/api/route`, {
-      params: { startLat: amb.lat, startLon: amb.lon, endLat: activeCase.hospitalLat, endLon: activeCase.hospitalLon, isEmergency: activeCase.urgency === 'emergency' },
+      params: { startLat: amb.lat, startLon: amb.lon, endLat: target.lat, endLon: target.lon, isEmergency: activeCase.urgency === 'emergency' },
     }).then(({ data }) => { if (data?.path) setAssignedRoute(data.path.map(p => [p.lat, p.lon])); }).catch(() => {});
-  }, [activeCase?.hospitalId, ambulances]);
+  }, [activeCase?.id, activeCase?.hospitalId, ambulances]);
 
   const onAddressChange = (val) => {
     setAddress(val); setEventPos(null); setSuggestions([]);
@@ -487,10 +490,10 @@ export default function DispatcherDashboard() {
                 אין משימות פעילות כרגע
               </div>
             ) : missions.map(m => (
-              <div key={m.id} style={{
+              <div key={m.id} onClick={() => { setActiveCase(m); setTab('new'); }} style={{
                 background: m.status === 'cancel_requested' ? '#fffbf0' : 'white',
                 border: `1.5px solid ${m.status === 'cancel_requested' ? '#ff9500' : '#e8eaed'}`,
-                borderRadius: 14, padding: '13px 14px',
+                borderRadius: 14, padding: '13px 14px', cursor: 'pointer',
                 animation: m.status === 'cancel_requested' ? 'cancelPulse 1.8s ease-in-out infinite' : 'none',
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9, flexWrap: 'wrap' }}>
@@ -520,7 +523,7 @@ export default function DispatcherDashboard() {
                   )}
                 </div>
                 <button
-                  onClick={() => handleCancelCase(m.id)}
+                  onClick={(e) => { e.stopPropagation(); handleCancelCase(m.id); }}
                   style={{
                     width: '100%', padding: '9px 0',
                     background: '#fff0ef', border: '1.5px solid #ff3b30',
