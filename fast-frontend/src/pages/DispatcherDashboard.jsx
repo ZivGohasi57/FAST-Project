@@ -77,6 +77,18 @@ export default function DispatcherDashboard() {
   const [trafficSegments, setTrafficSegments] = useState([]);
   const searchTimer        = useRef(null);
   const missionsFetchedRef = useRef(false);
+  const prevSceneRef       = useRef(null);
+
+  const [patientDraft,  setPatientDraft]  = useState('');
+  const [savingPatient, setSavingPatient] = useState(false);
+  const [patientSaved,  setPatientSaved]  = useState(false);
+
+  const [addressDraft,     setAddressDraft]     = useState('');
+  const [addressDraftPos,  setAddressDraftPos]  = useState(null);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [savingAddress,    setSavingAddress]    = useState(false);
+  const [addressSaved,     setAddressSaved]     = useState(false);
+  const editAddressTimer   = useRef(null);
 
   useEffect(() => {
     const fetch = () =>
@@ -143,6 +155,13 @@ export default function DispatcherDashboard() {
     }).then(({ data }) => { if (data?.path) setAssignedRoute(data.path.map(p => [p.lat, p.lon])); }).catch(() => {});
   }, [activeCase?.id, activeCase?.hospitalId, ambulances]);
 
+  useEffect(() => {
+    setPatientDraft(activeCase?.patientDetails || '');
+    setAddressDraft(activeCase?.address || '');
+    setAddressDraftPos(null);
+    setAddressSuggestions([]);
+  }, [activeCase?.id]);
+
   const onAddressChange = (val) => {
     setAddress(val); setEventPos(null); setSuggestions([]);
     clearTimeout(searchTimer.current);
@@ -202,6 +221,55 @@ export default function DispatcherDashboard() {
     } catch { setError('שגיאה בשליחת עדכון'); }
   };
 
+  const handleUpdatePatientDetails = async () => {
+    if (!activeCase) return;
+    setSavingPatient(true);
+    try {
+      await axios.post(`${API_BASE}/api/cases/update`, { caseId: activeCase.id, patientDetails: patientDraft });
+      setActiveCase(prev => prev ? { ...prev, patientDetails: patientDraft } : prev);
+      setPatientSaved(true); setTimeout(() => setPatientSaved(false), 2500);
+    } catch { setError('שגיאה בעדכון פרטי מטופל'); }
+    setSavingPatient(false);
+  };
+
+  const onEditAddressChange = (val) => {
+    setAddressDraft(val); setAddressDraftPos(null); setAddressSuggestions([]);
+    clearTimeout(editAddressTimer.current);
+    if (val.length < 3) return;
+    editAddressTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${NOMINATIM}?q=${encodeURIComponent(val)}&format=json&limit=5&countrycodes=il&accept-language=he,en`);
+        setAddressSuggestions(await res.json());
+      } catch {}
+    }, 420);
+  };
+
+  const pickEditAddress = (item) => {
+    const label = item.display_name.split(',').slice(0, 2).join(',').trim();
+    setAddressDraft(label);
+    setAddressDraftPos({ lat: parseFloat(item.lat), lon: parseFloat(item.lon) });
+    setAddressSuggestions([]);
+  };
+
+  const handleUpdateAddress = async () => {
+    if (!activeCase || !addressDraftPos) return;
+    setSavingAddress(true);
+    try {
+      await axios.post(`${API_BASE}/api/cases/update`, {
+        caseId: activeCase.id, address: addressDraft, lat: addressDraftPos.lat, lon: addressDraftPos.lon,
+      });
+      setActiveCase(prev => prev ? { ...prev, address: addressDraft, lat: addressDraftPos.lat, lon: addressDraftPos.lon } : prev);
+      setAddressDraftPos(null);
+      setAddressSaved(true); setTimeout(() => setAddressSaved(false), 2500);
+    } catch { setError('שגיאה בעדכון כתובת'); }
+    setSavingAddress(false);
+  };
+
+  const handleExitCase = () => {
+    setActiveCase(null);
+    setTab('missions');
+  };
+
   const handleComplete = async () => {
     if (!activeCase) return;
     try {
@@ -228,7 +296,8 @@ export default function DispatcherDashboard() {
 
   const mapPoints = [
     ...ambulances.map(a => [a.lat, a.lon]),
-    ...(eventPos ? [[eventPos.lat, eventPos.lon]] : []),
+    ...(!activeCase && eventPos ? [[eventPos.lat, eventPos.lon]] : []),
+    ...(activeCase?.lat ? [[activeCase.lat, activeCase.lon]] : []),
     ...(activeCase?.hospitalLat ? [[activeCase.hospitalLat, activeCase.hospitalLon]] : []),
   ];
 
@@ -442,7 +511,12 @@ export default function DispatcherDashboard() {
         {tab === 'new' && activeCase && (
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ background: '#fff8e1', border: '1px solid #ffcc02', borderRadius: 12, padding: '14px 16px' }}>
-              <div style={{ fontWeight: 700, fontSize: 14, color: '#7a5900', marginBottom: 8 }}>🚨 קריאה פעילה — {activeCase.id}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#7a5900' }}>🚨 קריאה פעילה — {activeCase.id}</div>
+                <button onClick={handleExitCase} style={{ background: 'none', border: 'none', color: '#7a5900', cursor: 'pointer', fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
+                  ⬅ חזרה לרשימה
+                </button>
+              </div>
               <div style={{ fontSize: 13, color: '#555', lineHeight: 1.9 }}>
                 <div>📍 {activeCase.address}</div>
                 <div>🚑 אמבולנס: <b>{activeCase.assignedAmbulanceNumber || activeCase.assignedAmbulanceId?.replace('amb-', '')}</b>{activeCase.assignedDriverName && <span style={{ color: '#999', fontWeight: 400 }}> ({activeCase.assignedDriverName})</span>}</div>
@@ -457,6 +531,52 @@ export default function DispatcherDashboard() {
                 </div>
               )}
             </div>
+
+            <div style={s.sectionTitle}>עריכת פרטי הקריאה</div>
+
+            <div>
+              <label style={s.label}>פרטי מטופל</label>
+              <textarea value={patientDraft} onChange={e => setPatientDraft(e.target.value)}
+                placeholder="גיל, מצב, תסמינים..." rows={2} style={{ ...s.input, resize: 'none', paddingTop: 10 }} />
+              <button onClick={handleUpdatePatientDetails}
+                disabled={savingPatient || patientDraft === (activeCase.patientDetails || '')} style={{
+                  marginTop: 6, ...s.btn, padding: '9px 0',
+                  background: patientDraft === (activeCase.patientDetails || '') ? '#e0e0e0' : '#007aff',
+                  color: patientDraft === (activeCase.patientDetails || '') ? '#aaa' : 'white',
+                  cursor: patientDraft === (activeCase.patientDetails || '') ? 'not-allowed' : 'pointer',
+                }}>
+                {savingPatient ? '...' : patientSaved ? '✓ עודכן' : '💾 עדכן פרטי מטופל'}
+              </button>
+            </div>
+
+            <div>
+              <label style={s.label}>כתובת האירוע</label>
+              <div style={{ position: 'relative' }}>
+                <input value={addressDraft} onChange={e => onEditAddressChange(e.target.value)} placeholder="הכנס כתובת חדשה..." style={s.input} />
+                {addressSuggestions.length > 0 && (
+                  <div style={s.dropdown}>
+                    {addressSuggestions.map((item, i) => (
+                      <div key={i} onMouseDown={() => pickEditAddress(item)} style={s.dropdownItem}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f0f4ff'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                        <span style={{ color: '#ff3b30', marginLeft: 8, flexShrink: 0 }}>📍</span>
+                        <span style={{ fontSize: 13, color: '#333', lineHeight: 1.4 }}>{item.display_name.split(',').slice(0, 3).join(',')}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={handleUpdateAddress} disabled={savingAddress || !addressDraftPos} style={{
+                marginTop: 6, ...s.btn, padding: '9px 0',
+                background: addressDraftPos ? '#ff3b30' : '#e0e0e0',
+                color: addressDraftPos ? 'white' : '#aaa',
+                cursor: addressDraftPos ? 'pointer' : 'not-allowed',
+              }}>
+                {savingAddress ? '...' : addressSaved ? '✓ עודכן' : '💾 עדכן כתובת (יעדכן גם את הנהג)'}
+              </button>
+            </div>
+
+            <div style={{ width: '100%', height: 1, background: '#e8eaed' }} />
 
             <div style={s.sectionTitle}>עדכון מצב לצוות</div>
             <textarea value={updateText} onChange={e => setUpdateText(e.target.value)}
@@ -583,9 +703,14 @@ export default function DispatcherDashboard() {
               </div></Popup>
             </Marker>
           ))}
-          {eventPos && (
+          {!activeCase && eventPos && (
             <Marker position={[eventPos.lat, eventPos.lon]} icon={iconEvent}>
               <Popup><div style={{ direction: 'rtl', fontSize: 13 }}><b>📍 מיקום האירוע</b><br /><span style={{ color: '#666' }}>{eventPos.label}</span></div></Popup>
+            </Marker>
+          )}
+          {activeCase?.lat && (
+            <Marker position={[activeCase.lat, activeCase.lon]} icon={iconEvent}>
+              <Popup><div style={{ direction: 'rtl', fontSize: 13 }}><b>📍 מיקום האירוע</b><br /><span style={{ color: '#666' }}>{activeCase.address}</span></div></Popup>
             </Marker>
           )}
           {activeCase?.hospitalLat && (

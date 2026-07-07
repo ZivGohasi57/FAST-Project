@@ -408,11 +408,18 @@ public class DataStore {
                 : cur + "\n[" + ts + "] " + text);
     }
 
-    public void updateCaseNotes(String caseId, String notes, String patientDetails) {
+    public void updateCaseNotes(String caseId, String notes, String patientDetails,
+                                 String address, Double lat, Double lon) {
         Map<String, Object> doc = getDoc("cases", caseId);
         if (doc == null) return;
         if (notes != null) appendNote(doc, notes);
         if (patientDetails != null) doc.put("patientDetails", patientDetails);
+        if (address != null && !address.isEmpty() && lat != null && lon != null) {
+            doc.put("address", address);
+            doc.put("lat", lat);
+            doc.put("lon", lon);
+            appendNote(doc, "📍 כתובת האירוע עודכנה: " + address);
+        }
         doc.remove("id");
         putDoc("cases", caseId, doc);
     }

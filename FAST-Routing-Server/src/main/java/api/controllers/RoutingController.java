@@ -312,7 +312,10 @@ public class RoutingController {
                 DS.updateCaseNotes(
                     json.get("caseId").getAsString(),
                     json.has("notes")          ? json.get("notes").getAsString()          : null,
-                    json.has("patientDetails") ? json.get("patientDetails").getAsString() : null
+                    json.has("patientDetails") ? json.get("patientDetails").getAsString() : null,
+                    json.has("address")        ? json.get("address").getAsString()        : null,
+                    json.has("lat")            ? json.get("lat").getAsDouble()            : null,
+                    json.has("lon")            ? json.get("lon").getAsDouble()            : null
                 );
                 sendStatus(ex, 200);
 

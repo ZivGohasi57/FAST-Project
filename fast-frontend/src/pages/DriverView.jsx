@@ -338,6 +338,7 @@ export default function DriverView() {
   const [locationLocked, setLocationLocked] = useState(false);
 
   const prevCaseIdRef       = useRef(null);
+  const prevSceneRef        = useRef(null);
   const locationLockedRef   = useRef(false);
   const prevActiveCaseIdRef = useRef(null);
   const firstGpsRef         = useRef(true);
@@ -442,23 +443,36 @@ export default function DriverView() {
   }, []);
 
   useEffect(() => {
-    if (!activeCase) { prevCaseIdRef.current = null; return; }
-    if (activeCase.id === prevCaseIdRef.current) return;
-    prevCaseIdRef.current = activeCase.id;
-    const alreadyArrived = !!activeCase.arrivalTime;
-    setArrivedAtScene(alreadyArrived);
-    if (activeCase.hospitalName) {
-      setEndPos({ lat: activeCase.hospitalLat, lon: activeCase.hospitalLon, label: activeCase.hospitalName });
-      setEndText(activeCase.hospitalName);
-    } else {
-      setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
-      setEndText(activeCase.address);
-      setNewCaseAlert(!alreadyArrived);
+    if (!activeCase) { prevCaseIdRef.current = null; prevSceneRef.current = null; return; }
+
+    if (activeCase.id !== prevCaseIdRef.current) {
+      prevCaseIdRef.current = activeCase.id;
+      const alreadyArrived = !!activeCase.arrivalTime;
+      setArrivedAtScene(alreadyArrived);
+      if (activeCase.hospitalName) {
+        setEndPos({ lat: activeCase.hospitalLat, lon: activeCase.hospitalLon, label: activeCase.hospitalName });
+        setEndText(activeCase.hospitalName);
+      } else {
+        setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
+        setEndText(activeCase.address);
+        setNewCaseAlert(!alreadyArrived);
+      }
+      prevSceneRef.current = { lat: activeCase.lat, lon: activeCase.lon };
+      setIsEmergency(activeCase.urgency === 'emergency');
+      setSearchOpen(false);
+      setIsFollowing(true);
+      setRecenterCount(c => c + 1);
+      return;
     }
-    setIsEmergency(activeCase.urgency === 'emergency');
-    setSearchOpen(false);
-    setIsFollowing(true);
-    setRecenterCount(c => c + 1);
+
+    if (!activeCase.hospitalName) {
+      const prev = prevSceneRef.current;
+      if (prev && (prev.lat !== activeCase.lat || prev.lon !== activeCase.lon)) {
+        setEndPos({ lat: activeCase.lat, lon: activeCase.lon, label: activeCase.address });
+        setEndText(activeCase.address);
+      }
+      prevSceneRef.current = { lat: activeCase.lat, lon: activeCase.lon };
+    }
   }, [activeCase]);
 
   useEffect(() => {
